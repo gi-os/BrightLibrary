@@ -1,4 +1,4 @@
-# FastRead Light
+# LightFastread
 
 **A fork of [FastRead](https://github.com/queueingqt/FastRead) retuned for the Light Phone III's black-and-white OLED.**
 
@@ -22,7 +22,7 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 | `surfaceVariant` and the dialog containers stay faintly grey | These back Material's *tracks* (progress bar, slider rails, switch tracks) and its *ephemeral* containers (AlertDialog, menus). Pure black would erase the tracks entirely, and a scrim over an already-black background tints nothing — a black dialog on a black screen is unanchored text. |
 | Black `windowBackground` in `themes.xml` | The launch theme is what Android paints during cold start, before Compose draws. The stock `Material.Light` parent flashed white — a full-brightness strobe on every launch. |
 | Book list padded past the FAB; bottom sheets allowed to go taller | The LPIII is roughly **411 × 472 dp** — normal width, about half the usual height. Anything sized as a fraction of screen height needed a second look. `Scaffold` reserves no space for the FAB, so the last book row sat permanently under "Add book". |
-| `targetSdk` 34, `applicationId` `com.fastread.light` | LightOS is Android 14, and the light-sdk emulator profile is API 34; no reason to opt into 35/36 behaviour the device will never see. The distinct application ID lets this install alongside upstream. `namespace` is still `com.fastread`. |
+| `targetSdk` 34, `applicationId` `com.lightfastread` | LightOS is Android 14, and the light-sdk emulator profile is API 34; no reason to opt into 35/36 behaviour the device will never see. The distinct application ID keeps it separate from upstream. `namespace` is still `com.fastread`. |
 
 Screenshots below are upstream's and still show the original purple/light UI.
 
@@ -36,7 +36,7 @@ a plain sideloaded APK, not an SDK tool, so for now:
 
 ```bash
 # Every push to main publishes a build to Releases. Grab the newest debug APK:
-adb install -r FastRead-Light-<version>-debug.apk
+adb install -r LightFastread-<version>-debug.apk
 ```
 
 Use the **debug** APK — it's signed with Android's standard debug key, so it installs
@@ -184,8 +184,8 @@ Requirements:
 Steps:
 
 ```bash
-git clone https://github.com/gi-os/FastRead-Light.git
-cd FastRead-Light
+git clone https://github.com/gi-os/LightFastread.git
+cd LightFastread
 ./gradlew assembleDebug
 # APK lands in app/build/outputs/apk/debug/
 ```

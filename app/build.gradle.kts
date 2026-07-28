@@ -26,10 +26,10 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // Distinct from upstream com.fastread so this fork installs alongside
-        // it. The `namespace` above stays com.fastread, so the generated R
-        // class and every source package are unchanged.
-        applicationId = "com.fastread.light"
+        // Distinct from upstream com.fastread. The `namespace` above stays
+        // com.fastread, so the generated R class and every source package are
+        // unchanged - only the installed identity differs.
+        applicationId = "com.lightfastread"
         minSdk = 24
         // LightOS ships Android 14 (API 34); the light-sdk emulator profile is
         // API 34 as well. Compiling against 36 is fine, but there is no reason

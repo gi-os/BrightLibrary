@@ -73,16 +73,16 @@ jobs:
           mkdir -p out
           BASE=$(grep -oP 'val baseVersionName = "\K[^"]+' app/build.gradle.kts)
           VER="${BASE}-b${GITHUB_RUN_NUMBER}"
-          cp app/build/outputs/apk/debug/app-debug.apk "out/FastRead-Light-${VER}-debug.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "out/LightFastread-${VER}-debug.apk"
           cp "$(ls app/build/outputs/apk/release/*.apk | head -1)" \
-             "out/FastRead-Light-${VER}-release.apk"
+             "out/LightFastread-${VER}-release.apk"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           ls -la out
 
       - name: Upload APKs as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FastRead-Light-${{ steps.collect.outputs.version }}
+          name: LightFastread-${{ steps.collect.outputs.version }}
           path: out/*.apk
           if-no-files-found: error
 
@@ -94,7 +94,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: FastRead Light ${{ steps.collect.outputs.version }}
+          name: LightFastread ${{ steps.collect.outputs.version }}
           files: out/*.apk
           make_latest: true
           body: |
@@ -104,7 +104,7 @@ jobs:
             so this installs straight over any earlier build:
 
             ```
-            adb install -r FastRead-Light-${{ steps.collect.outputs.version }}-debug.apk
+            adb install -r LightFastread-${{ steps.collect.outputs.version }}-debug.apk
             ```
 
             The **debug** APK is signed with Android's standard debug key and is the
