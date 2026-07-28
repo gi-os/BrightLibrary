@@ -26,6 +26,24 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 
 Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
 
+### Icon
+
+<img src="docs/icon.png" width="96" align="left" hspace="12" vspace="4">
+
+An open book: a page of dashed text on the left, collapsed to a single ringed word on the
+right. That asymmetry *is* RSVP — the whole book, reduced to one focal point.
+
+Drawn to match [LightFog](https://github.com/gi-os/LightFog) so the two read as siblings on
+the device: heavy white line art on a full-bleed pure-black square, round caps, 30/1024
+outline and 24/1024 detail strokes, ink filling ~62% of the canvas. The ringed dot echoes
+the pins LightFog's dashed route runs between.
+
+`scripts/generate_icon.py` defines the geometry once in a 1024-unit space and emits both
+the mipmap WebPs and the adaptive icon's `VectorDrawable`, so the raster and vector can't
+drift apart. Re-run it after any change.
+
+<br clear="left">
+
 ---
 
 ## Installing on a Light Phone III
