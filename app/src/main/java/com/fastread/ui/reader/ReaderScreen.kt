@@ -47,6 +47,8 @@ import com.fastread.data.Chapter
 import com.fastread.data.Fonts
 import com.fastread.data.SettingsRepository
 import com.fastread.data.SwipeMode
+import com.fastread.ui.theme.LocalIsLightPhone
+import com.fastread.ui.theme.toLightPhoneGrey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -65,6 +67,19 @@ fun ReaderScreen(
     val settingsRepo = remember { SettingsRepository.get(context) }
     val settings by settingsRepo.state
     val book = remember(bookId) { bookRepo.getBook(bookId) }
+
+    // The LPIII panel is greyscale, so the title and ORP accents the user picked
+    // in the colour wheel arrive as whatever grey their luminance happens to be.
+    // Flatten them here instead of at the draw site, so the emulator preview
+    // matches the device exactly and low-luma picks (the default red ORP) don't
+    // vanish against the dimmed context lines.
+    val isLightPhone = LocalIsLightPhone.current
+    val titleColor = Color(settings.titleColorArgb).let {
+        if (isLightPhone) it.toLightPhoneGrey() else it
+    }
+    val orpColor = Color(settings.orpColorArgb).let {
+        if (isLightPhone) it.toLightPhoneGrey(floor = 0.70f) else it
+    }
 
     if (book == null) {
         LaunchedEffect(Unit) { onBack() }
@@ -447,7 +462,7 @@ fun ReaderScreen(
                     isItalicWord = italic,
                     insideQuotes = quoteInfo.first,
                     quoteOpenChar = quoteInfo.second,
-                    titleColor = Color(settings.titleColorArgb),
+                    titleColor = titleColor,
                     titleStyle = settings.titleStyle,
                     currentIndex = currentIndex,
                     fontSizeSp = settings.fontSizeSp,
@@ -458,7 +473,7 @@ fun ReaderScreen(
                     bionicBoldWeight = settings.bionicBoldWeight,
                     bionicLightWeight = settings.bionicLightWeight,
                     orpEnabled = settings.orpEnabled,
-                    orpColor = Color(settings.orpColorArgb),
+                    orpColor = orpColor,
                     orpFocalSameColor = settings.orpFocalSameColor,
                     mainWordAlpha = mainWordAnim.value,
                 )

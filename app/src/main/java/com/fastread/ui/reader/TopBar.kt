@@ -16,6 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fastread.ui.theme.LocalIsLightPhone
+import com.fastread.ui.theme.lpBottomEdge
 
 @Composable
 fun TopBar(
@@ -24,10 +26,15 @@ fun TopBar(
     onQuickSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // On the Light Phone scheme the surface is pure black and tonal elevation
+    // is a no-op, so the bar needs an explicit edge to read as a bar. Keep it
+    // fully opaque there too - a 95%-alpha black over black text is just haze.
+    val lp = LocalIsLightPhone.current
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-        tonalElevation = 4.dp,
+        modifier = modifier.fillMaxWidth().lpBottomEdge(),
+        color = if (lp) MaterialTheme.colorScheme.surface
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        tonalElevation = if (lp) 0.dp else 4.dp,
     ) {
         Row(
             modifier = Modifier

@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fastread.data.BionicMode
 import com.fastread.data.TitleStyle
+import com.fastread.ui.theme.LocalIsLightPhone
+import com.fastread.ui.theme.LpContrast
 
 @Composable
 fun WordDisplay(
@@ -191,7 +193,9 @@ fun WordDisplay(
                     text = "¶",
                     fontSize = (fontSizeSp * 1.1f).sp,
                     fontFamily = fontFamily,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(
+                        alpha = if (LocalIsLightPhone.current) LpContrast.floor(0.45f, 0.6f) else 0.45f,
+                    ),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = (fontSizeSp * 1.4f).dp),
@@ -244,10 +248,16 @@ private fun ContextLineWindow(
 ) {
     if (words.isEmpty()) return
     val ctxFontSizeSp = contextFontSizeSp.toFloat().coerceAtLeast(8f)
-    val highlightColor = MaterialTheme.colorScheme.onBackground.copy(alpha = contextAlpha)
-    val faintColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * contextAlpha)
-    val highlightTitleColor = titleColor.copy(alpha = contextAlpha)
-    val faintTitleColor = titleColor.copy(alpha = 0.7f * contextAlpha)
+    // The context lines are meant to be de-emphasised, not invisible. Matte
+    // glass costs roughly a stop of perceived contrast, so on the LPIII we
+    // compress the user's contextAlpha into 0.55..1.0 rather than 0..1. The
+    // ordering they chose in settings survives; the bottom of the range no
+    // longer resolves to unreadable.
+    val ctxAlpha = if (LocalIsLightPhone.current) LpContrast.lift(contextAlpha) else contextAlpha
+    val highlightColor = MaterialTheme.colorScheme.onBackground.copy(alpha = ctxAlpha)
+    val faintColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * ctxAlpha)
+    val highlightTitleColor = titleColor.copy(alpha = ctxAlpha)
+    val faintTitleColor = titleColor.copy(alpha = 0.7f * ctxAlpha)
     val density = LocalDensity.current
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {

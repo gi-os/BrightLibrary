@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.FastRead" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      The window background is what Android paints during cold start, before
+      Compose has drawn anything. The stock Material.Light parent flashes white,
+      which on the Light Phone III's black-and-white OLED is a full-brightness
+      strobe every single launch. Black instead.
+    -->
+    <style name="Theme.FastRead" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

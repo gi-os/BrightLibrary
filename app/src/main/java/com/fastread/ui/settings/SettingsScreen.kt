@@ -510,6 +510,14 @@ fun SettingsScreen(onBack: () -> Unit) {
             SectionTitle("Appearance")
             Text("Theme", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(8.dp))
+            Text(
+                "Light Phone uses pure #000000 on every surface so OLED pixels stay " +
+                    "off, and flattens the title and ORP accents to grey because the " +
+                    "panel is black and white anyway.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            )
+            Spacer(Modifier.height(8.dp))
             Column(modifier = Modifier.selectableGroup()) {
                 ThemeMode.values().forEach { mode ->
                     val selected = s.themeMode == mode
@@ -526,13 +534,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ) {
                         RadioButton(selected = selected, onClick = null)
                         Spacer(Modifier.width(8.dp))
-                        Text(mode.name)
+                        Text(themeModeLabel(mode))
                     }
                 }
             }
             Spacer(Modifier.height(32.dp))
         }
     }
+}
+
+private fun themeModeLabel(mode: ThemeMode): String = when (mode) {
+    ThemeMode.System -> "System"
+    ThemeMode.Light -> "Light"
+    ThemeMode.Dark -> "Dark"
+    ThemeMode.LightPhone -> "Light Phone (true black)"
 }
 
 @Composable

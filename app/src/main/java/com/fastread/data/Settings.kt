@@ -2,7 +2,10 @@ package com.fastread.data
 
 import kotlinx.serialization.Serializable
 
-enum class ThemeMode { System, Light, Dark }
+// LightPhone is a pure-black greyscale scheme for the Light Phone III's
+// matte AMOLED panel. It is deliberately a separate mode rather than a
+// redefinition of Dark, so this fork stays rebaseable on upstream FastRead.
+enum class ThemeMode { System, Light, Dark, LightPhone }
 enum class SwipeMode { Normal, Zone }
 enum class BionicMode { Off, MainOnly, ContextOnly, Both }
 enum class TitleStyle { Color, Underline, Both }
@@ -21,7 +24,7 @@ data class Settings(
     val contextFontSizeSp: Int = 18,
     val contextAlpha: Float = 0.5f,
     val fontFamily: String = "Default",
-    val themeMode: ThemeMode = ThemeMode.System,
+    val themeMode: ThemeMode = ThemeMode.LightPhone,
     val swipeMode: SwipeMode = SwipeMode.Normal,
     val swipeDpPerWord: Int = 10,
     val bionicMode: BionicMode = BionicMode.Off,

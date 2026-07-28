@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import com.fastread.ui.theme.lpBorder
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -109,7 +110,10 @@ fun HomeScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    // Scaffold does not reserve space for the FAB, and with only
+                    // ~472dp of height on the LPIII the last book row ends up
+                    // permanently under "Add book". Pad past it.
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
                 ) {
                     items(books, key = { it.id }) { book ->
                         BookRow(
@@ -128,6 +132,7 @@ fun HomeScreen(
                     Surface(
                         shape = MaterialTheme.shapes.medium,
                         tonalElevation = 4.dp,
+                        border = lpBorder(),
                     ) {
                         Row(
                             modifier = Modifier.padding(24.dp),
@@ -176,6 +181,9 @@ private fun BookRow(
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = MaterialTheme.shapes.medium,
         tonalElevation = 2.dp,
+        // Tonal elevation is what separates a row from the background upstream.
+        // The Light Phone scheme has no tonal lift, so rows get a hairline.
+        border = lpBorder(),
     ) {
         Row(
             modifier = Modifier.padding(16.dp),

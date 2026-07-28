@@ -8,11 +8,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import com.fastread.data.SwipeMode
+import com.fastread.ui.theme.LocalIsLightPhone
 
 @Composable
 fun ZoneOverlay(swipeMode: SwipeMode, bottomDeadZonePx: Float) {
     val lineColor = MaterialTheme.colorScheme.onBackground
-    Canvas(modifier = Modifier.fillMaxSize().alpha(0.18f)) {
+    // 18% white is a readable hairline on a glossy panel. The LPIII's matte
+    // glass diffuses it into nothing, so the zone guides get a lift there.
+    val guideAlpha = if (LocalIsLightPhone.current) 0.30f else 0.18f
+    Canvas(modifier = Modifier.fillMaxSize().alpha(guideAlpha)) {
         val w = size.width
         val h = size.height
         val topStrip = h * 0.2f

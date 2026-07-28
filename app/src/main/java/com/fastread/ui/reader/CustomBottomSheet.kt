@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.fastread.ui.theme.LocalIsLightPhone
+import com.fastread.ui.theme.lpBorder
 import kotlinx.coroutines.launch
 
 // Material3 ModalBottomSheet attaches Modifier.anchoredDraggable directly to
@@ -63,7 +65,11 @@ fun CustomBottomSheet(
                     onClick = onDismiss,
                 ),
         ) {
-            val maxSheetHeight = maxHeight / 2
+            // Half the screen is a sane cap at 890dp tall. The LPIII is ~472dp,
+            // where half leaves room for about four chapter rows once the drag
+            // handle is subtracted, so the sheet is allowed to go taller there.
+            val maxSheetHeight =
+                if (LocalIsLightPhone.current) maxHeight * 0.78f else maxHeight / 2
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -78,6 +84,9 @@ fun CustomBottomSheet(
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 1.dp,
+                // Without this the sheet is black-on-black and reads as loose
+                // text floating over the reader.
+                border = lpBorder(),
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     BottomSheetDragHandle(
@@ -121,7 +130,9 @@ private fun BottomSheetDragHandle(
             modifier = Modifier
                 .size(width = 32.dp, height = 4.dp)
                 .background(
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = if (LocalIsLightPhone.current) 0.8f else 0.4f,
+                    ),
                     shape = RoundedCornerShape(2.dp),
                 ),
         )

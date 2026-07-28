@@ -1,0 +1,76 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # AGP 9.x requires JDK 17+. 21 is what the toolchain resolves against.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode release keystore
+        # Optional. Set the four RELEASE_* secrets to get a signed release APK;
+        # without them the release build is unsigned and the debug APK (signed
+        # with Android's standard debug key) is the one to sideload.
+        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/release.jks"
+          cat > "$GITHUB_WORKSPACE/keystore.properties" <<PROPS
+          storeFile=release.jks
+          storePassword=${{ secrets.RELEASE_STORE_PASSWORD }}
+          keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
+          keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
+          PROPS
+
+      - name: Assemble debug + release
+        run: ./gradlew --no-daemon assembleDebug assembleRelease
+
+      - name: Run unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Rename artifacts
+        id: rename
+        run: |
+          mkdir -p out
+          VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          cp app/build/outputs/apk/debug/app-debug.apk "out/FastRead-Light-${VER}-debug.apk"
+          REL=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          cp "$REL" "out/FastRead-Light-${VER}-release.apk"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          ls -la out
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: FastRead-Light-apks
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: Attach APKs to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          generate_release_notes: true

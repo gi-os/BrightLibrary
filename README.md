@@ -1,8 +1,80 @@
-# FastRead
+# FastRead Light
 
-**A speed-reading (RSVP) app for Android that turns your EPUB and MOBI library into one-word-at-a-time bursts you control with a single gesture.**
+**A fork of [FastRead](https://github.com/queueingqt/FastRead) retuned for the Light Phone III's black-and-white OLED.**
 
-FastRead is built for people who already have a shelf full of `.epub` and `.mobi` files and want a focused, distraction-free way to plow through them faster. No accounts, no cloud, no tracking, no ads, no network permission. Your books stay on your device.
+Everything upstream does, on a screen where every lit pixel is a choice: pure `#000000` on
+every surface, a greyscale palette, and layout that assumes a 3.92" near-square panel
+instead of a tall glossy one.
+
+Upstream FastRead is unchanged in behaviour here. This fork only touches presentation.
+
+---
+
+## What's different from upstream
+
+| Change | Why |
+| ------ | --- |
+| New **Light Phone** theme mode, default on first run | Kept separate from `Dark` rather than replacing it, so this fork stays rebaseable on upstream. |
+| Every `surface*` role is `#000000`, `surfaceTint` is black | Material 3's dark scheme uses `#1C1B1F`-ish greys plus tonal elevation overlays. On an OLED that's a lit grey slab where there should be nothing. Black `surfaceTint` makes `surfaceColorAtElevation` resolve to black at every elevation. |
+| Hairline outlines replace tonal elevation | Once tonal lift is gone, book rows, the top bar, the chapter strip and the bottom sheet are black-on-black with no visible boundary. They get 1dp `outline` edges instead — one row of dim grey rather than a whole grey rectangle. |
+| Title and ORP accents flattened to grey | The panel is greyscale, so the orange title and red ORP letter arrive as whatever grey their luminance happens to be. Rec. 709 luma is remapped into `0.62..1.0` so low-luma picks (the default red, luma ≈ 0.36) stay legible instead of sinking into the dimmed context lines. |
+| Contrast floors on de-emphasised text | Matte glass diffuses light and costs roughly a stop of perceived contrast. Context lines, the paragraph pilcrow, the progress readout and the zone guides all had alphas tuned for glossy glass. Relative ordering is preserved; the bottom of the range is lifted. |
+| `surfaceVariant` and the dialog containers stay faintly grey | These back Material's *tracks* (progress bar, slider rails, switch tracks) and its *ephemeral* containers (AlertDialog, menus). Pure black would erase the tracks entirely, and a scrim over an already-black background tints nothing — a black dialog on a black screen is unanchored text. |
+| Black `windowBackground` in `themes.xml` | The launch theme is what Android paints during cold start, before Compose draws. The stock `Material.Light` parent flashed white — a full-brightness strobe on every launch. |
+| Book list padded past the FAB; bottom sheets allowed to go taller | The LPIII is roughly **411 × 472 dp** — normal width, about half the usual height. Anything sized as a fraction of screen height needed a second look. `Scaffold` reserves no space for the FAB, so the last book row sat permanently under "Add book". |
+| `targetSdk` 34, `applicationId` `com.fastread.light` | LightOS is Android 14, and the light-sdk emulator profile is API 34; no reason to opt into 35/36 behaviour the device will never see. The distinct application ID lets this install alongside upstream. `namespace` is still `com.fastread`. |
+
+Screenshots below are upstream's and still show the original purple/light UI.
+
+---
+
+## Installing on a Light Phone III
+
+Light's own [light-sdk](https://github.com/lightphone/light-sdk) is the sanctioned path for
+LightOS "Tools", and community tools will eventually be built and signed by Light. This is
+a plain sideloaded APK, not an SDK tool, so for now:
+
+```bash
+# Grab the APK from the Actions artifacts or a tagged release, then:
+adb install -r FastRead-Light-<version>-debug.apk
+```
+
+Two caveats worth knowing before you start, both from Light's own docs as of July 2026:
+
+- There is **no easy distribution path yet**. ADB sideloading works if you're comfortable
+  with it, but LightOS builds in the wild aren't ready to play nicely with SDK-built tools.
+- LightOS will let you run unsigned/third-party APKs only under the **"Any tools"** setting,
+  and Light explicitly warns that you own the install/uninstall lifecycle there.
+
+### Testing without hardware
+
+Light publishes an emulator profile that behaves close to real hardware:
+
+- **1080 × 1240, 3.92" display**
+- **Android API 34**
+- **No Google Play Services**
+
+That's the configuration this fork was designed against. Note the emulator renders in
+colour — the real panel is black and white, which is exactly why the palette here is
+greyscale by construction rather than "colours that happen to look fine in dark mode".
+
+---
+
+## Building
+
+CI (`.github/workflows/build.yml`) builds a debug and a release APK on every push and
+attaches both to any `v*` tag. The debug APK is signed with Android's standard debug key
+and is directly `adb install`-able.
+
+For a properly signed release, set four repository secrets:
+`RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
+`RELEASE_KEY_PASSWORD`. Without them the release build is simply unsigned.
+
+Locally:
+
+```bash
+./gradlew assembleDebug     # requires JDK 17+ (AGP 9.x); Android SDK 36
+```
 
 ---
 
@@ -58,8 +130,8 @@ Most RSVP apps either bury you in buttons, lock features behind a subscription, 
 
 ### Look & feel
 
-- **Material 3 design** with dynamic color on Android 12+.
-- **System / Light / Dark** theme switching.
+- **Material 3 design**, with a hand-built greyscale scheme for the Light Phone III.
+- **System / Light / Dark / Light Phone** theme switching. Light Phone is pure `#000000` greyscale.
 - **Live font preview** in settings: size and family (default, serif, sans-serif, monospace).
 - **Quick-settings sheet** on the reader screen for tweaking font size and family without leaving your book.
 
@@ -92,8 +164,8 @@ Requirements:
 Steps:
 
 ```bash
-git clone https://github.com/<your-fork>/FastRead.git
-cd FastRead
+git clone https://github.com/gi-os/FastRead-Light.git
+cd FastRead-Light
 ./gradlew assembleDebug
 # APK lands in app/build/outputs/apk/debug/
 ```
@@ -131,7 +203,7 @@ All settings persist via SharedPreferences (JSON-encoded, no database). They can
 | Font size | 56 sp | Focal word size. |
 | Font family | Default | Default / Serif / Sans-serif / Monospace. |
 | Bionic mode | Off | Off / Main only / Context only / Both. |
-| Theme | System | System / Light / Dark. |
+| Theme | Light Phone | System / Light / Dark / Light Phone (true black). |
 | Input mode | Hold zones | Hold zones / Swipe / Zone swipe. |
 | Swipe distance per word | 10 dp | Only used in swipe-based input modes. |
 
@@ -212,5 +284,9 @@ In short: you are free to use, study, modify, and redistribute the app, but any 
 ---
 
 ## Credits
+
+All of the reading engine, both parsers and the entire gesture design are
+[queueingqt/FastRead](https://github.com/queueingqt/FastRead). This fork contributes a
+display treatment for one specific piece of hardware and nothing else.
 
 RSVP as a reading technique has been around for decades; FastRead's contribution is a tight, gesture-first Android implementation that respects your privacy and your library.

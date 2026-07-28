@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.fastread.ui.theme.LocalIsLightPhone
+import com.fastread.ui.theme.LpContrast
 import kotlin.math.roundToInt
 
 @Composable
@@ -22,6 +24,8 @@ fun BottomStatus(
     modifier: Modifier = Modifier,
 ) {
     val percent = if (total > 0) (index * 100f / total).coerceIn(0f, 100f) else 0f
+    val lp = LocalIsLightPhone.current
+    val readoutAlpha = if (lp) LpContrast.floor(0.7f, 0.85f) else 0.7f
     Column(modifier = modifier) {
         if (isHolding && liveWpm > 0.5f) {
             Text(
@@ -44,7 +48,7 @@ fun BottomStatus(
                 .padding(vertical = 4.dp),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = readoutAlpha),
         )
     }
 }

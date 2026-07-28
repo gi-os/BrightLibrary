@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fastread.ui.theme.LocalIsLightPhone
+import com.fastread.ui.theme.lpBottomEdge
 
 @Composable
 fun ChapterStrip(
@@ -44,9 +46,11 @@ fun ChapterStrip(
     showStatusBarPadding: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val lp = LocalIsLightPhone.current
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+        modifier = modifier.fillMaxWidth().lpBottomEdge(),
+        color = if (lp) MaterialTheme.colorScheme.surface
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
     ) {
         Row(
             modifier = Modifier
