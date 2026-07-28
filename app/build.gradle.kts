@@ -8,6 +8,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Single source of truth for the version. The CI workflow greps
+// `baseVersionName` out of this file to name the APK artifacts, so keep it as a
+// plain string literal.
+val baseVersionName = "1.1.0-light.1"
+val ciRunNumber: Int? = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
@@ -29,8 +35,14 @@ android {
         // API 34 as well. Compiling against 36 is fine, but there is no reason
         // to opt into 35/36 behaviour changes the device will never see.
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.1.0-light.1"
+
+        // CI stamps every build with the workflow run number so each pushed APK
+        // has a strictly higher versionCode than the last and installs over it
+        // with `adb install -r`. Local builds stay at 1 - if you have a CI build
+        // on the device already, a local install needs `adb install -r -d` to
+        // allow the version downgrade.
+        versionCode = ciRunNumber ?: 1
+        versionName = ciRunNumber?.let { "$baseVersionName-b$it" } ?: baseVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
