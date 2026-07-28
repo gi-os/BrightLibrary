@@ -54,13 +54,25 @@ LightOS "Tools", and community tools will eventually be built and signed by Ligh
 a plain sideloaded APK, not an SDK tool, so for now:
 
 ```bash
-# Every push to main publishes a build to Releases. Grab the newest debug APK:
-adb install -r LightFastread-<version>-debug.apk
+# Every push to main publishes a signed build to Releases:
+adb install -r LightFastread-<version>.apk
 ```
 
-Use the **debug** APK — it's signed with Android's standard debug key, so it installs
-without any extra setup. Nothing needs uninstalling first; the package ID is unique to
-this fork. The release APK is unsigned unless the `RELEASE_*` secrets are set.
+Each release carries exactly one APK, signed with a stable key. Nothing needs
+uninstalling first; the package ID is unique to this fork.
+
+### Obtainium
+
+Add `https://github.com/gi-os/LightFastread` as a GitHub source. There is one `.apk` per
+release, so there's nothing to disambiguate, and every build is signed with the same key —
+updates apply in place.
+
+Releases up to and including `build-11` cannot be updated from. The release APK was
+unsigned, and the debug APK was signed with the throwaway `~/.android/debug.keystore`
+that a CI runner regenerates on every job — so consecutive builds had *different*
+certificates. Android rejects both cases, and Obtainium reports either as
+`Failure: Invalid`. **If you installed build-11 or earlier, uninstall once**, then install
+`build-12` or later; updates are stable from there on.
 
 Two caveats worth knowing before you start, both from Light's own docs as of July 2026:
 
@@ -88,10 +100,13 @@ greyscale by construction rather than "colours that happen to look fine in dark 
 `.github/workflows/build.yml` builds, tests and publishes on every push to `main` — no
 tagging step needed. Each run:
 
-1. builds debug + release APKs,
+1. builds and tests, then signs the release APK,
 2. stamps `versionCode` with the **workflow run number** and `versionName` with a `-bN`
    suffix, so each build is strictly newer than the last,
-3. publishes a GitHub Release tagged `build-N`, marked latest, with both APKs attached.
+3. verifies the signing certificate against `signing-fingerprint.txt`,
+4. publishes a GitHub Release tagged `build-N`, marked latest, with the single signed APK
+   attached. The debug build stays a workflow artifact, so Obtainium can't pick it up by
+   mistake.
 
 Because `versionCode` always increases, `adb install -r` upgrades in place — no uninstall,
 no lost library or reading positions.
@@ -102,16 +117,23 @@ number; the workflow greps it to name the artifacts. Bump it there when the vers
 Tagging `v*` additionally cuts a release with generated notes, for when you want a
 hand-marked version rather than a rolling build.
 
-For a properly *signed* release APK, set four repository secrets:
-`RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
-`RELEASE_KEY_PASSWORD`. Without them the release APK is unsigned and the debug APK is the
-one to install.
+Signing is mandatory. Four repository secrets drive it — `RELEASE_KEYSTORE_BASE64`,
+`RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD` — and the build
+**fails** if the keystore secret is missing rather than quietly emitting an unsigned APK.
+
+The signing certificate's SHA-256 is pinned in `signing-fingerprint.txt` and CI compares
+every build against it. If the keystore is ever lost or replaced, the build fails loudly
+instead of shipping an APK that no existing install can update to.
 
 Locally:
 
 ```bash
 ./gradlew assembleDebug     # requires JDK 17+ (AGP 9.x) and Android SDK 36
 ```
+
+Drop a `keystore.properties` next to `settings.gradle.kts` (`storeFile`, `storePassword`,
+`keyAlias`, `keyPassword`) and local builds — debug included — are signed with the same key
+as CI, so they can replace a released build in place. It's gitignored.
 
 Local builds get `versionCode = 1`, so if a CI build is already on the device you'll need
 `adb install -r -d` to allow the downgrade.

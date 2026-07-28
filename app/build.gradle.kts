@@ -61,6 +61,16 @@ android {
     }
 
     buildTypes {
+        debug {
+            // When a keystore is configured, sign debug with it too. Android
+            // identifies an app by (packageName, signing certificate), so a
+            // debug build signed with the throwaway ~/.android/debug.keystore
+            // cannot replace an installed release build - and CI runners
+            // regenerate that throwaway key on every single job.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")

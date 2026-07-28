@@ -21,12 +21,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      # Resolved here rather than in a step `if:`, because the `secrets` context
-      # is not available in step-level conditionals - referencing it there fails
-      # the whole workflow at startup with zero jobs run.
-      HAS_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -47,19 +41,31 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # Signing is mandatory, not optional. Android identifies an app by
+      # (packageName, signing certificate): an update signed by a different key
+      # is rejected outright, and an unsigned APK cannot install at all. Both
+      # surface through Obtainium as the same unhelpful "Failure: Invalid".
+      #
+      # This step used to be conditional, which silently published unsigned
+      # release APKs for eleven builds. Now a missing secret fails the build.
       - name: Decode release keystore
-        # Optional. Set the four RELEASE_* secrets for a signed release APK.
-        # Without them the release build is unsigned, and the debug APK - signed
-        # with Android's standard debug key - is the one to sideload.
-        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/release.jks"
-          cat > "$GITHUB_WORKSPACE/keystore.properties" <<PROPS
-          storeFile=release.jks
-          storePassword=${{ secrets.RELEASE_STORE_PASSWORD }}
-          keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
-          keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
-          PROPS
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 is not set. Releases must be signed with a stable key or installed apps cannot be updated."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/release.jks"
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > "$GITHUB_WORKSPACE/keystore.properties"
 
       # One invocation, daemon left on. Three separate `--no-daemon` runs meant
       # three cold configuration phases and three JVM starts, which dominated
@@ -67,28 +73,53 @@ jobs:
       - name: Build and test
         run: ./gradlew assembleDebug assembleRelease testDebugUnitTest --stacktrace
 
+      # The signing certificate must never change, or every already-installed
+      # copy becomes un-updatable. Pin its fingerprint in the repo and fail loudly
+      # on any drift - including the case where the release silently falls back
+      # to unsigned.
+      - name: Verify signing certificate
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          APK=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$APK" ]; then
+            echo "::error::$APK is missing - the release build produced an unsigned APK."
+            ls -la app/build/outputs/apk/release/ || true
+            exit 1
+          fi
+          "$APKSIGNER" verify --print-certs "$APK" | tee /tmp/certs.txt
+          ACTUAL=$(grep -m1 -i 'certificate SHA-256 digest' /tmp/certs.txt \
+                   | awk -F': ' '{print $2}' | tr -d ' \r' | tr 'A-Z' 'a-z')
+          EXPECTED=$(tr -d ' \r\n' < signing-fingerprint.txt | tr 'A-Z' 'a-z')
+          echo "expected $EXPECTED"
+          echo "actual   $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Signing certificate changed. Every installed copy would fail to update. Restore the original keystore, or bump signing-fingerprint.txt only if you intend to break updates."
+            exit 1
+          fi
+
       - name: Collect artifacts
         id: collect
         run: |
           mkdir -p out
           BASE=$(grep -oP 'val baseVersionName = "\K[^"]+' app/build.gradle.kts)
           VER="${BASE}-b${GITHUB_RUN_NUMBER}"
-          cp app/build/outputs/apk/debug/app-debug.apk "out/LightFastread-${VER}-debug.apk"
-          cp "$(ls app/build/outputs/apk/release/*.apk | head -1)" \
-             "out/LightFastread-${VER}-release.apk"
+          # Exactly one APK ships. Publishing a debug build alongside it meant
+          # Obtainium could pick either, and the debug one is signed with a
+          # throwaway key the runner regenerates on every job.
+          cp app/build/outputs/apk/release/app-release.apk "out/LightFastread-${VER}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "debug-LightFastread-${VER}.apk"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           ls -la out
 
-      - name: Upload APKs as workflow artifact
+      - name: Upload debug APK as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LightFastread-${{ steps.collect.outputs.version }}
-          path: out/*.apk
+          name: debug-LightFastread-${{ steps.collect.outputs.version }}
+          path: debug-*.apk
           if-no-files-found: error
 
-      # Every push to main publishes a downloadable APK to Releases, so there is
-      # always a current build to sideload without digging through workflow
-      # artifacts (which expire, and need a login to download).
+      # Every push to main publishes a downloadable APK to Releases, so Obtainium
+      # always has a current build to pull.
       - name: Publish build release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
@@ -100,16 +131,17 @@ jobs:
           body: |
             Automatic build of `${{ github.sha }}`.
 
-            `versionCode` is the workflow run number (`${{ github.run_number }}`),
-            so this installs straight over any earlier build:
-
             ```
-            adb install -r LightFastread-${{ steps.collect.outputs.version }}-debug.apk
+            adb install -r LightFastread-${{ steps.collect.outputs.version }}.apk
             ```
 
-            The **debug** APK is signed with Android's standard debug key and is the
-            one to sideload. The release APK is unsigned unless the `RELEASE_*`
-            repository secrets are set.
+            `versionCode` is the workflow run number (`${{ github.run_number }}`) and
+            every build is signed with the same key, so this updates in place — via
+            `adb`, or via Obtainium.
+
+            Signing certificate SHA-256 is pinned in
+            [`signing-fingerprint.txt`](https://github.com/gi-os/LightFastread/blob/main/signing-fingerprint.txt);
+            CI fails if it ever changes.
 
       # Tagged releases are the hand-cut, human-notes ones.
       - name: Publish tagged release
