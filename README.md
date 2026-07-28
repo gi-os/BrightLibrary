@@ -19,6 +19,7 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 | Hairline outlines replace tonal elevation | Once tonal lift is gone, book rows, the top bar, the chapter strip and the bottom sheet are black-on-black with no visible boundary. They get 1dp `outline` edges instead — one row of dim grey rather than a whole grey rectangle. |
 | Title and ORP accents flattened to grey | The panel is greyscale, so the orange title and red ORP letter arrive as whatever grey their luminance happens to be. Rec. 709 luma is remapped into `0.62..1.0` so low-luma picks (the default red, luma ≈ 0.36) stay legible instead of sinking into the dimmed context lines. |
 | Contrast floors on de-emphasised text | Matte glass diffuses light and costs roughly a stop of perceived contrast. Context lines, the paragraph pilcrow, the progress readout and the zone guides all had alphas tuned for glossy glass. Relative ordering is preserved; the bottom of the range is lifted. |
+| Zone guides are off by default and toggleable | Upstream draws the gesture boundaries permanently. On a pure-black screen that grid competes with the text instead of receding behind it, and it's only genuinely useful while you're still learning where the zones are. |
 | `surfaceVariant` and the dialog containers stay faintly grey | These back Material's *tracks* (progress bar, slider rails, switch tracks) and its *ephemeral* containers (AlertDialog, menus). Pure black would erase the tracks entirely, and a scrim over an already-black background tints nothing — a black dialog on a black screen is unanchored text. |
 | Black `windowBackground` in `themes.xml` | The launch theme is what Android paints during cold start, before Compose draws. The stock `Material.Light` parent flashed white — a full-brightness strobe on every launch. |
 | Book list padded past the FAB; bottom sheets allowed to go taller | The LPIII is roughly **411 × 472 dp** — normal width, about half the usual height. Anything sized as a fraction of screen height needed a second look. `Scaffold` reserves no space for the FAB, so the last book row sat permanently under "Add book". |
@@ -124,7 +125,7 @@ These two are this fork, on a Light Phone III.
 | Library | Reader |
 | :---: | :---: |
 | ![Library](docs/screenshots/library.png) | ![Reader](docs/screenshots/reader.png) |
-| One word at a time, three lines of context above it, bionic mode on, zone guides visible. | Imported EPUBs with word counts and progress. Hairline outlines stand in for the tonal elevation an OLED cannot afford. |
+| One word at a time, three lines of context above it, bionic mode on, zone guides toggled on. | Imported EPUBs with word counts and progress. Hairline outlines stand in for the tonal elevation an OLED cannot afford. |
 
 The next two come from upstream and still show the original purple and light interface.
 They are here because this fork changes no behavior on either screen.
@@ -157,6 +158,7 @@ Most RSVP apps either bury you in buttons, lock features behind a subscription, 
   - **Hold zones** — hold the right 2/3 of the screen to advance, hold the left 1/3 to step back or auto-rewind.
   - **Swipe** — swipe right to advance, left to go back; distance per word is configurable.
   - **Zone swipe** — combine zones with swipe direction for fine control.
+- **Optional zone guides.** Hairlines along every gesture boundary, toggleable from Settings or the in-reader quick-settings sheet. Off by default — upstream drew them permanently, which on a black screen reads as a bento-box grid over your book.
 - **Speed mapped to finger position.** In hold-zones mode, where you press in the forward zone is your WPM (left edge = `minWpm`, right edge = `maxWpm`).
 - **Smooth ramp-up** from 0 to target WPM on press, so speed changes never feel jarring.
 - **Tap-to-step-back vs. hold-to-rewind** in the backward zone, separated by a configurable threshold.
@@ -249,6 +251,7 @@ All settings persist via SharedPreferences (JSON-encoded, no database). They can
 | Bionic mode | Off | Off / Main only / Context only / Both. |
 | Theme | Light Phone | System / Light / Dark / Light Phone (true black). |
 | Input mode | Hold zones | Hold zones / Swipe / Zone swipe. |
+| Show zone guides | Off | Draws hairlines along every gesture boundary. Off by default. |
 | Swipe distance per word | 10 dp | Only used in swipe-based input modes. |
 
 ---

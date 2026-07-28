@@ -27,6 +27,10 @@ data class Settings(
     val themeMode: ThemeMode = ThemeMode.LightPhone,
     val swipeMode: SwipeMode = SwipeMode.Normal,
     val swipeDpPerWord: Int = 10,
+    // The zone guides draw hairlines along every gesture boundary. Useful while
+    // you're learning where the zones are, clutter once you know - and on the
+    // Light Phone III every lit pixel is a choice, so they default to off.
+    val showZoneGuides: Boolean = false,
     val bionicMode: BionicMode = BionicMode.Off,
     val bionicBoldWeight: Int = 700,
     val bionicLightWeight: Int = 400,

@@ -429,7 +429,9 @@ fun ReaderScreen(
                     }
                 }
         ) {
-            ZoneOverlay(swipeMode = settings.swipeMode, bottomDeadZonePx = bottomDeadZonePx)
+            if (settings.showZoneGuides) {
+                ZoneOverlay(swipeMode = settings.swipeMode, bottomDeadZonePx = bottomDeadZonePx)
+            }
 
             if (loading) {
                 Box(

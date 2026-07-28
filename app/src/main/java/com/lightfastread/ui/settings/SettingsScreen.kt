@@ -76,6 +76,33 @@ fun SettingsScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = s.showZoneGuides,
+                        onClick = { repo.update { it.copy(showZoneGuides = !s.showZoneGuides) } },
+                        role = Role.Switch,
+                    )
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Switch(
+                    checked = s.showZoneGuides,
+                    onCheckedChange = { v -> repo.update { it.copy(showZoneGuides = v) } },
+                )
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("Show zone guides", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Draws the gesture boundaries above. Handy while learning them, " +
+                            "clutter once you know where they are.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    )
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Text("Swipe band mode", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(4.dp))
