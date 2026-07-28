@@ -87,8 +87,15 @@ jobs:
             exit 1
           fi
           "$APKSIGNER" verify --print-certs "$APK" | tee /tmp/certs.txt
+          # apksigner prints "V2 Signer: certificate SHA-256 digest: <hex>". The
+          # number of ": " separators varies by signature scheme, so anchor on
+          # the label and take everything after it rather than a field index.
           ACTUAL=$(grep -m1 -i 'certificate SHA-256 digest' /tmp/certs.txt \
-                   | awk -F': ' '{print $2}' | tr -d ' \r' | tr 'A-Z' 'a-z')
+                   | sed -E 's/.*[Dd]igest:[[:space:]]*//' | tr -d ' \r' | tr 'A-Z' 'a-z')
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::Could not read a certificate digest from apksigner output."
+            exit 1
+          fi
           EXPECTED=$(tr -d ' \r\n' < signing-fingerprint.txt | tr 'A-Z' 'a-z')
           echo "expected $EXPECTED"
           echo "actual   $ACTUAL"
