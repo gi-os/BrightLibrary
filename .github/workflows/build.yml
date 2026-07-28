@@ -15,28 +15,39 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # Resolved here rather than in a step `if:`, because the `secrets` context
+      # is not available in step-level conditionals - referencing it there fails
+      # the whole workflow at startup with zero jobs run.
+      HAS_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+
     steps:
       - uses: actions/checkout@v4
 
-      # AGP 9.x requires JDK 17+. 21 is what the toolchain resolves against.
-      - name: Set up JDK 21
+      # gradle/gradle-daemon-jvm.properties pins the daemon to JetBrains 21.
+      # Matching it here avoids Gradle auto-provisioning a second JDK over the
+      # network on every run.
+      - name: Set up JDK 21 (JetBrains Runtime)
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: jetbrains
           java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Decode release keystore
-        # Optional. Set the four RELEASE_* secrets to get a signed release APK;
-        # without them the release build is unsigned and the debug APK (signed
-        # with Android's standard debug key) is the one to sideload.
-        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
-        env:
-          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        # Optional. Set the four RELEASE_* secrets for a signed release APK.
+        # Without them the release build is unsigned, and the debug APK - signed
+        # with Android's standard debug key - is the one to sideload.
+        if: env.HAS_KEYSTORE == 'true'
         run: |
-          echo "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/release.jks"
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/release.jks"
           cat > "$GITHUB_WORKSPACE/keystore.properties" <<PROPS
           storeFile=release.jks
           storePassword=${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -44,21 +55,22 @@ jobs:
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           PROPS
 
+      - name: Lint Kotlin (compile only)
+        run: ./gradlew --no-daemon compileDebugKotlin
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
       - name: Assemble debug + release
         run: ./gradlew --no-daemon assembleDebug assembleRelease
 
-      - name: Run unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
-
-      - name: Rename artifacts
-        id: rename
+      - name: Collect artifacts
         run: |
           mkdir -p out
           VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           cp app/build/outputs/apk/debug/app-debug.apk "out/FastRead-Light-${VER}-debug.apk"
-          REL=$(ls app/build/outputs/apk/release/*.apk | head -1)
-          cp "$REL" "out/FastRead-Light-${VER}-release.apk"
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          cp "$(ls app/build/outputs/apk/release/*.apk | head -1)" \
+             "out/FastRead-Light-${VER}-release.apk"
           ls -la out
 
       - name: Upload APKs
