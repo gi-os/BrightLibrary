@@ -324,7 +324,7 @@ Bug reports and PRs are welcome. A few notes:
 
 ## The gi-os Light App collection
 
-Nine tools for the Light Phone III, all open source, all built in one run.
+Ten tools for the Light Phone III, all open source, all built in one run.
 
 | Tool | What it does | Built on |
 | --- | --- | --- |
@@ -337,6 +337,7 @@ Nine tools for the Light Phone III, all open source, all built in one run.
 | [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
 | **LightFastread** (this repo) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
 
 The Light Phone does not sponsor or endorse any of these. This repo is GPL-3.0, unlike the
 rest of the collection, because upstream FastRead is.
