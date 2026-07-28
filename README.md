@@ -1,6 +1,6 @@
 # LightFastread
 
-**A fork of [FastRead](https://github.com/queueingqt/FastRead) retuned for the Light Phone III's black-and-white OLED.**
+**A fork of [FastRead](https://github.com/fluffyspace/FastRead) retuned for the Light Phone III's black-and-white OLED.**
 
 Everything upstream does, on a screen where every lit pixel is a choice: pure `#000000` on
 every surface, a greyscale palette, and layout that assumes a 3.92" near-square panel
@@ -24,7 +24,7 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 | Book list padded past the FAB; bottom sheets allowed to go taller | The LPIII is roughly **411 × 472 dp** — normal width, about half the usual height. Anything sized as a fraction of screen height needed a second look. `Scaffold` reserves no space for the FAB, so the last book row sat permanently under "Add book". |
 | `targetSdk` 34; package fully renamed to `com.lightfastread` | LightOS is Android 14, and the light-sdk emulator profile is API 34; no reason to opt into 35/36 behaviour the device will never see. Both `namespace` and `applicationId` are `com.lightfastread`, so this shares no identifier with upstream FastRead — not the package, the R class, or the permission and provider authorities AndroidX derives from them. It installs cleanly alongside any other FastRead build. |
 
-Screenshots below are upstream's and still show the original purple/light UI.
+Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
 
 ---
 
@@ -101,15 +101,20 @@ Local builds get `versionCode = 1`, so if a CI build is already on the device yo
 
 ## Screenshots
 
+These two are this fork, on a Light Phone III.
+
 | Library | Reader |
 | :---: | :---: |
 | ![Library](docs/screenshots/library.png) | ![Reader](docs/screenshots/reader.png) |
-| Browse your imported EPUBs and MOBIs with progress bars. | One word at a time with a three-line context window. Bionic mode on. |
+| Imported EPUBs with word counts and progress. Hairline outlines stand in for the tonal elevation an OLED cannot afford. | One word at a time, three lines of context above it, bionic mode on, zone guides visible. |
 
-| Settings | Quick settings |
+The next two come from upstream and still show the original purple and light interface.
+They are here because this fork changes no behavior on either screen.
+
+| Settings (upstream) | Quick settings (upstream) |
 | :---: | :---: |
 | ![Settings](docs/screenshots/settings.png) | ![Quick settings](docs/screenshots/quick-settings.png) |
-| Tweak input mode, speed, pauses, fonts, bionic, theme. | In-reader sheet for live font and size changes. |
+| Input mode, speed, pauses, fonts, bionic, theme. | In-reader sheet for live font and size changes. |
 
 ---
 
@@ -296,6 +301,27 @@ Bug reports and PRs are welcome. A few notes:
 
 ---
 
+## The gi-os Light App collection
+
+Nine tools for the Light Phone III, all open source, all built in one run.
+
+| Tool | What it does | Built on |
+| --- | --- | --- |
+| [LightPass](https://github.com/gi-os/LightPass) | Photograph a movie ticket, keep the stub | Plain Android |
+| [LightQR](https://github.com/gi-os/LightQR) | QR scanner, plus a browser generator | Plain Android |
+| [LightRSS](https://github.com/gi-os/LightRSS) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/LightRSS](https://github.com/zachattack323/LightRSS) |
+| [LightNYCSubway](https://github.com/gi-os/LightNYCSubway) | Live MTA subway arrivals | light-sdk fork |
+| [chat](https://github.com/gi-os/chat) | iMessage over a self-hosted BlueBubbles server | Fork of [craigeley/chat](https://github.com/craigeley/chat) |
+| [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
+| [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
+| [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
+| **LightFastread** (this repo) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+
+The Light Phone does not sponsor or endorse any of these. This repo is GPL-3.0, unlike the
+rest of the collection, because upstream FastRead is.
+
+---
+
 ## License
 
 FastRead is released under the **GNU General Public License v3.0** (GPL-3.0). See [LICENSE](LICENSE) for the full text.
@@ -306,8 +332,12 @@ In short: you are free to use, study, modify, and redistribute the app, but any 
 
 ## Credits
 
-All of the reading engine, both parsers and the entire gesture design are
-[queueingqt/FastRead](https://github.com/queueingqt/FastRead). This fork contributes a
-display treatment for one specific piece of hardware and nothing else.
+The reading engine, both parsers and the whole gesture design belong to
+**[fluffyspace](https://github.com/fluffyspace)**, in
+[fluffyspace/FastRead](https://github.com/fluffyspace/FastRead). This fork contributes a
+display treatment for one piece of hardware and nothing else. Thank you.
+
+[queueingqt/FastRead](https://github.com/queueingqt/FastRead) is a fork of that original,
+not the source. An earlier version of this file credited it by mistake.
 
 RSVP as a reading technique has been around for decades; FastRead's contribution is a tight, gesture-first Android implementation that respects your privacy and your library.
