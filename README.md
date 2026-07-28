@@ -106,7 +106,7 @@ These two are this fork, on a Light Phone III.
 | Library | Reader |
 | :---: | :---: |
 | ![Library](docs/screenshots/library.png) | ![Reader](docs/screenshots/reader.png) |
-| Imported EPUBs with word counts and progress. Hairline outlines stand in for the tonal elevation an OLED cannot afford. | One word at a time, three lines of context above it, bionic mode on, zone guides visible. |
+| One word at a time, three lines of context above it, bionic mode on, zone guides visible. | Imported EPUBs with word counts and progress. Hairline outlines stand in for the tonal elevation an OLED cannot afford. |
 
 The next two come from upstream and still show the original purple and light interface.
 They are here because this fork changes no behavior on either screen.
