@@ -35,9 +35,12 @@ LightOS "Tools", and community tools will eventually be built and signed by Ligh
 a plain sideloaded APK, not an SDK tool, so for now:
 
 ```bash
-# Grab the APK from the Actions artifacts or a tagged release, then:
+# Every push to main publishes a build to Releases. Grab the newest debug APK:
 adb install -r FastRead-Light-<version>-debug.apk
 ```
+
+Use the **debug** APK — it's signed with Android's standard debug key, so it installs
+without any extra setup. The release APK is unsigned unless the `RELEASE_*` secrets are set.
 
 Two caveats worth knowing before you start, both from Light's own docs as of July 2026:
 
@@ -62,19 +65,36 @@ greyscale by construction rather than "colours that happen to look fine in dark 
 
 ## Building
 
-CI (`.github/workflows/build.yml`) builds a debug and a release APK on every push and
-attaches both to any `v*` tag. The debug APK is signed with Android's standard debug key
-and is directly `adb install`-able.
+`.github/workflows/build.yml` builds, tests and publishes on every push to `main` — no
+tagging step needed. Each run:
 
-For a properly signed release, set four repository secrets:
+1. builds debug + release APKs,
+2. stamps `versionCode` with the **workflow run number** and `versionName` with a `-bN`
+   suffix, so each build is strictly newer than the last,
+3. publishes a GitHub Release tagged `build-N`, marked latest, with both APKs attached.
+
+Because `versionCode` always increases, `adb install -r` upgrades in place — no uninstall,
+no lost library or reading positions.
+
+`baseVersionName` in `app/build.gradle.kts` is the single source of truth for the version
+number; the workflow greps it to name the artifacts. Bump it there when the version changes.
+
+Tagging `v*` additionally cuts a release with generated notes, for when you want a
+hand-marked version rather than a rolling build.
+
+For a properly *signed* release APK, set four repository secrets:
 `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
-`RELEASE_KEY_PASSWORD`. Without them the release build is simply unsigned.
+`RELEASE_KEY_PASSWORD`. Without them the release APK is unsigned and the debug APK is the
+one to install.
 
 Locally:
 
 ```bash
-./gradlew assembleDebug     # requires JDK 17+ (AGP 9.x); Android SDK 36
+./gradlew assembleDebug     # requires JDK 17+ (AGP 9.x) and Android SDK 36
 ```
+
+Local builds get `versionCode = 1`, so if a CI build is already on the device you'll need
+`adb install -r -d` to allow the downgrade.
 
 ---
 
