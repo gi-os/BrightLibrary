@@ -22,13 +22,15 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.fastread"
+    // Both the namespace and the applicationId are com.lightfastread, so this
+    // shares no identifier of any kind with upstream FastRead - not the package,
+    // not the R class, and not the auto-generated permission and provider
+    // authorities that AndroidX derives from them. Installing this can never
+    // collide with an existing FastRead build.
+    namespace = "com.lightfastread"
     compileSdk = 36
 
     defaultConfig {
-        // Distinct from upstream com.fastread. The `namespace` above stays
-        // com.fastread, so the generated R class and every source package are
-        // unchanged - only the installed identity differs.
         applicationId = "com.lightfastread"
         minSdk = 24
         // LightOS ships Android 14 (API 34); the light-sdk emulator profile is
