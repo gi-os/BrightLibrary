@@ -2,13 +2,17 @@ package com.lightfastread.ui.reader
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -25,9 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -39,6 +44,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -49,21 +55,24 @@ import com.lightfastread.hw.WheelScroll
 import com.lightfastread.ui.theme.LocalIsLightPhone
 import com.lightfastread.ui.theme.LpContrast
 import kotlin.math.floor
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 // Full-page reading mode, opened by tapping the three-line context preview
 // above the RSVP word (see ReaderScreen's context-band tap handling). Where
 // the RSVP loop shows one word at a time, this shows a whole page of the
 // book and lets you move between pages by swipe or by the hardware wheel,
-// with an iOS 6-style card flip between them.
+// with a flat page-fold flip between them (see the render code below for why
+// it isn't a 3D rotation).
 //
 // Pagination reuses WordDisplay's own line-break heuristic (`paginateByChars`)
 // rather than a real text layout pass: an average-glyph-width estimate is
 // O(words) and cheap enough to redo on rotation, where laying out an entire
 // novel with a real TextMeasurer would stall opening a long book. Lines are
 // then grouped into pages by how many fit the available height. Both numbers
-// are biased conservative, same as the context window, so a full page never
-// silently clips its last line on device.
+// are biased conservative - deliberately more so than the context window,
+// which only ever shows three lines and had far less room to be wrong - so a
+// full page never silently clips text at the bottom on device.
 internal data class PagePagination(
     val pages: List<IntRange>,
     val wordToPage: IntArray,
@@ -121,19 +130,31 @@ fun EreaderScreen(
     val marginPx = with(density) { 20.dp.toPx() }
     val topChromePx = with(density) { 56.dp.toPx() }
     val bottomChromePx = with(density) { 40.dp.toPx() }
+    // PageBody's own padding is derived from these same three values (passed
+    // down below) rather than hardcoded separately, so the space pagination
+    // assumes is available is exactly the space the Text actually gets.
+    // Two independent numbers that were each "roughly this much chrome" is
+    // what let them drift apart and clip text at the bottom in practice.
+    val marginDp = with(density) { marginPx.toDp() }
+    val topChromeDp = with(density) { topChromePx.toDp() }
+    val bottomChromeDp = with(density) { bottomChromePx.toDp() }
 
-    // Average-glyph-width heuristic, same 0.56-ish factor family as the
-    // context window - biased so a computed line is never actually wider
-    // than the page in practice.
-    val avgCharFactor = 0.56f
+    // Average-glyph-width heuristic. Deliberately more conservative (wider
+    // assumed glyphs, more assumed line height) than the three-line context
+    // window's own version of this estimate: a wrong guess there just makes
+    // one preview line wrap oddly, but a wrong guess here silently clips
+    // words off the bottom of a full page, which is much worse and was
+    // exactly the bug reported after the first cut of this feature.
+    val avgCharFactor = 0.64f
     val pageWidthPx = (widthPx - marginPx * 2f).coerceAtLeast(1f)
     val pageHeightPx = (heightPx - topChromePx - bottomChromePx).coerceAtLeast(1f)
     val charsPerLine = (pageWidthPx / (fontPx * avgCharFactor)).toInt().coerceAtLeast(8)
     val lineHeightPx = fontPx * 1.45f
     // Paragraph breaks render as a blank line, which this char-count heuristic
-    // doesn't account for - 0.88 leaves enough headroom that the last line of
-    // a page doesn't get clipped once real paragraph gaps are laid out.
-    val linesPerPage = ((pageHeightPx / lineHeightPx) * 0.88f).toInt().coerceAtLeast(3)
+    // doesn't account for - 0.75 leaves real headroom (rather than shaving a
+    // sliver off) so a page's last line is never actually the one that gets
+    // cut off on a real device.
+    val linesPerPage = ((pageHeightPx / lineHeightPx) * 0.75f).toInt().coerceAtLeast(3)
 
     val pagination = remember(bookId, charsPerLine, linesPerPage) {
         paginatePages(words, paragraphBreakAfter, charsPerLine, linesPerPage)
@@ -160,9 +181,7 @@ fun EreaderScreen(
     val basePage = floor(clamped).toInt().coerceIn(0, pageCount - 1)
     val frac = (clamped - basePage).coerceIn(0f, 1f)
     val nextPage = (basePage + 1).coerceAtMost(pageCount - 1)
-    val angle = frac * 180f
-    val showPage = if (angle < 90f) basePage else nextPage
-    val rotation = if (angle < 90f) -angle else 180f - angle
+    val showPage = if (frac < 0.5f) basePage else nextPage
 
     val closeToCurrentPage: () -> Unit = {
         onClose(pagination.pages.getOrNull(showPage)?.first ?: initialWordIndex)
@@ -221,32 +240,75 @@ fun EreaderScreen(
                 },
             color = MaterialTheme.colorScheme.background,
         ) {
+            // A flat page-fold flip rather than a 3D rotation: the outgoing
+            // page's trailing edge stays put while a rigid "flap" - the part
+            // of it past the crease - swings left, off-screen, uncovering
+            // the incoming page underneath. This models the rigid-fold +
+            // gradient-shadow technique classic 2D page-turn implementations
+            // use (turn.js's mirrored-flap fold, StPageFlip's canvas
+            // clip-and-shade renderer) rather than harism's OpenGL cylinder
+            // warp, which needs a real 3D pipeline Compose's Canvas doesn't
+            // have. The flap itself is a plain shaded panel, not the page's
+            // own text mirrored - real page-curl implementations don't
+            // render readable backwards text on the turning leaf either,
+            // since there's no "back side" art to show.
+            val onBg = MaterialTheme.colorScheme.onBackground
+            val bg = MaterialTheme.colorScheme.background
+            val creaseXpx = (widthPx * (1f - frac)).coerceIn(0f, widthPx)
+            val flapWidthPx = min(widthPx - creaseXpx, creaseXpx).coerceAtLeast(0f)
+            val flapXpx = creaseXpx - flapWidthPx
+            val shadowStripWidthPx = with(density) { 28.dp.toPx() }.coerceAtMost(widthPx - creaseXpx)
+
             Box(modifier = Modifier.fillMaxSize()) {
+                // Incoming page, full screen underneath - progressively
+                // uncovered as the flap swings away.
+                PageBody(
+                    words = words,
+                    range = pagination.pages[nextPage],
+                    paragraphBreakAfter = paragraphBreakAfter,
+                    isItalicWord = isItalicWord,
+                    isTitleWord = isTitleWord,
+                    titleColor = titleColor,
+                    applyColor = applyColor,
+                    applyUnderline = applyUnderline,
+                    fontFamily = fontFamily,
+                    fontSizeSp = safeFontSizeSp,
+                    marginDp = marginDp,
+                    topPaddingDp = topChromeDp,
+                    bottomPaddingDp = bottomChromeDp,
+                )
+
+                // A faint shadow the raised fold casts onto the incoming
+                // page, right where the crease currently sits.
+                if (shadowStripWidthPx > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(with(density) { shadowStripWidthPx.toDp() })
+                            .offset(x = with(density) { creaseXpx.toDp() })
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(onBg.copy(alpha = 0.22f), Color.Transparent),
+                                ),
+                            ),
+                    )
+                }
+
+                // The outgoing page's still-flat remainder - full text
+                // layout at the normal page width so wrapping never changes,
+                // just visually cut off past the crease.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer {
-                            rotationY = rotation
-                            // Pivot at the left edge - like a page hinged at
-                            // the spine - rather than the screen's center, so
-                            // this reads as a page turning over instead of
-                            // the whole screen spinning in place.
-                            transformOrigin = TransformOrigin(0f, 0.5f)
-                            // An edge pivot sweeps the full page width instead
-                            // of half of it, so it needs more camera distance
-                            // than a center pivot to avoid a hard perspective
-                            // skew near the edge-on midpoint.
-                            // GraphicsLayerScope is itself a Density; `this.`
-                            // is required because the outer LocalDensity val
-                            // of the same name otherwise wins simple-name
-                            // resolution over GraphicsLayerScope's own
-                            // inherited Density.density.
-                            cameraDistance = 8f * this.density * 24f
+                        .drawWithContent {
+                            clipRect(left = 0f, right = creaseXpx) {
+                                this@drawWithContent.drawContent()
+                            }
                         },
                 ) {
                     PageBody(
                         words = words,
-                        range = pagination.pages[showPage],
+                        range = pagination.pages[basePage],
                         paragraphBreakAfter = paragraphBreakAfter,
                         isItalicWord = isItalicWord,
                         isTitleWord = isTitleWord,
@@ -255,6 +317,26 @@ fun EreaderScreen(
                         applyUnderline = applyUnderline,
                         fontFamily = fontFamily,
                         fontSizeSp = safeFontSizeSp,
+                        marginDp = marginDp,
+                        topPaddingDp = topChromeDp,
+                        bottomPaddingDp = bottomChromeDp,
+                    )
+                }
+
+                // The hinged flap: a plain shaded panel with a shadow that
+                // deepens toward the crease, where the fold is raised
+                // highest.
+                if (flapWidthPx > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(with(density) { flapWidthPx.toDp() })
+                            .offset(x = with(density) { flapXpx.toDp() })
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(bg, onBg.copy(alpha = 0.30f)),
+                                ),
+                            ),
                     )
                 }
 
@@ -281,6 +363,9 @@ private fun PageBody(
     applyUnderline: Boolean,
     fontFamily: FontFamily,
     fontSizeSp: Int,
+    marginDp: Dp,
+    topPaddingDp: Dp,
+    bottomPaddingDp: Dp,
 ) {
     val text = remember(range, isItalicWord, isTitleWord, titleColor, applyColor, applyUnderline) {
         buildPageText(
@@ -296,7 +381,12 @@ private fun PageBody(
         color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(
+                start = marginDp,
+                end = marginDp,
+                top = topPaddingDp,
+                bottom = bottomPaddingDp,
+            ),
     )
 }
 
