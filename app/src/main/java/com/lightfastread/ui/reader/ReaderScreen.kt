@@ -601,6 +601,9 @@ fun ReaderScreen(
                     titleColor = titleColor,
                     titleStyle = settings.titleStyle,
                     fontFamily = Fonts.familyFor(settings.fontFamily),
+                    // The family object alone can't key a layout cache; the
+                    // settings key can.
+                    fontKey = settings.fontFamily,
                     fontSizeSp = settings.readerFontSizeSp,
                     initialWordIndex = currentIndex,
                     onClose = { newIndex ->

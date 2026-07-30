@@ -2,12 +2,14 @@ package com.lightfastread.ui.reader
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -15,19 +17,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.withStyle
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,53 +46,51 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.data.TitleStyle
 import com.lightfastread.hw.WheelInDialog
-import com.lightfastread.hw.WheelScroll
+import com.lightfastread.hw.WheelSteps
 import com.lightfastread.ui.theme.LocalIsLightPhone
 import com.lightfastread.ui.theme.LpContrast
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
-// Full-page reading mode, opened by tapping the three-line context preview
-// above the RSVP word (see ReaderScreen's context-band tap handling). Where
-// the RSVP loop shows one word at a time, this shows a whole page of the
-// book and lets you move between pages by swipe or by the hardware wheel.
+// Full-page reading mode, opened by tapping the three-line context preview above
+// the RSVP word (see ReaderScreen's context-band tap handling).
 //
-// This is built on Compose Foundation's own HorizontalPager rather than a
-// hand-rolled drag/flip - an earlier custom version (a 3D rotationY flip,
-// then a hand-built 2D page-fold) kept shipping real bugs: swipe direction
-// guessed wrong, multiple pages advancing on one fast swipe, two pages'
-// text rendering on top of each other. A Pager is the well-tested primitive
-// for exactly this - one page per slot, swipe or fling always lands on
-// exactly one adjacent page, and the default transition is already the
-// plain slide this is supposed to look like. PagerState also happens to
-// implement ScrollableState, so the hardware wheel plugs in exactly like it
-// does for every LazyColumn sheet elsewhere in this app.
-internal data class PagePagination(
-    val pages: List<IntRange>,
-    val wordToPage: IntArray,
-)
+// Page turning is Compose Foundation's own HorizontalPager. Earlier attempts at a
+// hand-built gesture (a 3D rotationY flip, then a hand-drawn 2D page fold) each
+// shipped a different bug - reversed direction, several pages skipped per swipe,
+// two pages' text drawn over each other. A Pager holds one page per slot, its
+// default fling is limited to a single adjacent page, and its default transition
+// is a plain slide, so there is no custom animation or gesture arithmetic left to
+// get wrong.
+//
+// Where the pages *come from* is in EreaderPagination.kt, and it is measured
+// rather than estimated - see the comment there for why estimating silently
+// deleted text.
 
-private fun paginatePages(
-    words: List<String>,
-    paragraphBreakAfter: BooleanArray,
-    charsPerLine: Int,
-    linesPerPage: Int,
-): PagePagination {
-    val lineInfo = paginateByChars(words, paragraphBreakAfter, charsPerLine)
-    if (lineInfo.lines.isEmpty() || linesPerPage <= 0) {
-        return PagePagination(emptyList(), IntArray(words.size))
+/** Words per measuring block. ~8k characters: big enough to amortise, small
+ *  enough that no single layout pass is expensive. */
+private const val PROBE_WORDS = 1500
+
+/**
+ * Pagination survives closing and reopening the reader.
+ *
+ * Measuring a whole novel takes a second or two, which is fine behind a progress
+ * indicator the first time but insulting on every open. One entry is enough: it is
+ * always the book being read, and the key covers everything that changes the
+ * layout, so a font or size change correctly misses and re-measures.
+ */
+private object PageCache {
+    private var key: String? = null
+    private var pages: List<IntRange>? = null
+
+    fun get(k: String): List<IntRange>? = if (k == key) pages else null
+
+    fun put(k: String, value: List<IntRange>) {
+        key = k
+        pages = value
     }
-    val pages = ArrayList<IntRange>(lineInfo.lines.size / linesPerPage + 1)
-    val wordToPage = IntArray(words.size)
-    var i = 0
-    while (i < lineInfo.lines.size) {
-        val end = (i + linesPerPage - 1).coerceAtMost(lineInfo.lines.size - 1)
-        val start = lineInfo.lines[i].first
-        val last = lineInfo.lines[end].last
-        val pageIdx = pages.size
-        pages.add(start..last)
-        for (w in start..last) if (w in words.indices) wordToPage[w] = pageIdx
-        i = end + 1
-    }
-    return PagePagination(pages, wordToPage)
 }
 
 @Composable
@@ -101,137 +103,218 @@ fun EreaderScreen(
     titleColor: Color,
     titleStyle: TitleStyle,
     fontFamily: FontFamily,
+    fontKey: String,
     fontSizeSp: Int,
     initialWordIndex: Int,
     onClose: (wordIndex: Int) -> Unit,
 ) {
-    val density = LocalDensity.current
-    val config = LocalConfiguration.current
-    val widthPx = with(density) { config.screenWidthDp.dp.toPx() }
-    val heightPx = with(density) { config.screenHeightDp.dp.toPx() }
-
     val applyColor = titleStyle == TitleStyle.Color || titleStyle == TitleStyle.Both
     val applyUnderline = titleStyle == TitleStyle.Underline || titleStyle == TitleStyle.Both
-
     val safeFontSizeSp = fontSizeSp.coerceAtLeast(8)
-    val marginDp = 20.dp
-    val topChromeDp = 56.dp
-    val bottomChromeDp = 40.dp
-    val marginPx = with(density) { marginDp.toPx() }
-    val topChromePx = with(density) { topChromeDp.toPx() }
-    val bottomChromePx = with(density) { bottomChromeDp.toPx() }
-    val pageWidthPx = (widthPx - marginPx * 2f).coerceAtLeast(1f)
-    val pageHeightPx = (heightPx - topChromePx - bottomChromePx).coerceAtLeast(1f)
 
-    // Real measurement rather than a guessed average-glyph-width factor: the
-    // earlier heuristic version of this (0.56, then 0.64) kept underestimating
-    // how wide this book's actual text renders and packed more words onto a
-    // page than really fit, clipping the tail off the bottom of the screen.
-    // A single measured line of this book's own words (forced onto one line,
-    // not wrapped) gives both the real average character width and the real
-    // line height for the chosen font and size directly, in one cheap call.
-    val textMeasurer = rememberTextMeasurer()
+    val marginDp: Dp = 20.dp
+    val topPadDp: Dp = 56.dp
+    val bottomPadDp: Dp = 40.dp
+
+    // The one style used for both measuring and drawing. Any difference between
+    // the two would reintroduce exactly the class of bug this rewrite fixes, so
+    // there is deliberately only one of them.
     val bodyStyle = remember(fontFamily, safeFontSizeSp) {
-        TextStyle(fontFamily = fontFamily, fontSize = safeFontSizeSp.sp)
-    }
-    val sampleText = remember(bookId, words) {
-        words.asSequence().take(300).joinToString(" ")
-            .ifEmpty { "The quick brown fox jumps over the lazy dog." }
-    }
-    val (charsPerLine, linesPerPage) = remember(sampleText, bodyStyle, pageWidthPx, pageHeightPx) {
-        val measured = textMeasurer.measure(
-            text = sampleText,
-            style = bodyStyle,
-            softWrap = false,
-            maxLines = 1,
+        TextStyle(
+            fontFamily = fontFamily,
+            fontSize = safeFontSizeSp.sp,
+            lineHeight = (safeFontSizeSp * 1.45f).sp,
         )
-        val avgCharWidthPx = (measured.size.width.toFloat() / sampleText.length.coerceAtLeast(1))
-            .coerceAtLeast(1f)
-        val realLineHeightPx = measured.size.height.toFloat().coerceAtLeast(1f)
-        val perLine = (pageWidthPx / avgCharWidthPx).toInt().coerceAtLeast(8)
-        // Paragraph breaks still render as a blank line, which this doesn't
-        // know about, and charsPerLine still buckets words by count rather
-        // than a true wrap - 0.92 is headroom for those two approximations
-        // only, not for font-metric guesswork anymore.
-        val perPage = ((pageHeightPx / realLineHeightPx) * 0.92f).toInt().coerceAtLeast(3)
-        perLine to perPage
     }
 
-    val pagination = remember(bookId, charsPerLine, linesPerPage) {
-        paginatePages(words, paragraphBreakAfter, charsPerLine, linesPerPage)
-    }
-    val pageCount = pagination.pages.size
+    // cacheSize = 0: this measurer is used from a background thread during
+    // pagination, and TextMeasurer's internal layout cache is not built for
+    // concurrent use. Nothing else shares this instance.
+    val measurer = rememberTextMeasurer(cacheSize = 0)
 
-    if (pageCount == 0) {
-        LaunchedEffect(Unit) { onClose(initialWordIndex) }
-        return
-    }
-
-    val initialPage = pagination.wordToPage.getOrElse(
-        initialWordIndex.coerceIn(0, (words.size - 1).coerceAtLeast(0))
-    ) { 0 }
+    var pages by remember(bookId) { mutableStateOf<List<IntRange>>(emptyList()) }
+    var progress by remember(bookId) { mutableFloatStateOf(0f) }
+    // The close button is collapsed until asked for, so it never sits over the
+    // text while reading - the same pattern as the RSVP reader's own top bar.
     var showChrome by remember(bookId) { mutableStateOf(false) }
-    val pagerState = rememberPagerState(initialPage = initialPage) { pageCount }
+    val pagerState = rememberPagerState(initialPage = 0) { pages.size }
 
-    val closeToCurrentPage: () -> Unit = {
-        val shown = pagerState.currentPage.coerceIn(0, pageCount - 1)
-        onClose(pagination.pages.getOrNull(shown)?.first ?: initialWordIndex)
+    // Whichever page is showing decides where RSVP resumes, so closing always
+    // lands on the first word of the page actually on screen.
+    val currentWord: () -> Int = {
+        pages.getOrNull(pagerState.currentPage)?.first ?: initialWordIndex
     }
+    val close: () -> Unit = { onClose(currentWord()) }
 
     Dialog(
-        onDismissRequest = closeToCurrentPage,
+        onDismissRequest = close,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        // A Dialog is its own window - the wheel needs picking up here the
-        // same way every other full-screen sheet in this app does.
+        // A Dialog is its own window, so it has to pick the wheel up itself - the
+        // Activity's dispatchKeyEvent never runs while this is on screen.
         WheelInDialog()
-        // PagerState implements ScrollableState directly, so the wheel drives
-        // page turns exactly the way it drives every LazyColumn sheet
-        // elsewhere in this app - no bespoke wiring needed.
-        WheelScroll(pagerState)
+
+        // One notch is one page. The wheel used to be wired straight into the
+        // pager as a pixel scroller, which left it parked between two pages
+        // because a Pager only snaps at the end of a *gesture*, and the wheel's
+        // two-notch arming threshold made the first turn jump two pages at once.
+        // Notches now name a target page and the pager animates to it, so the
+        // wheel can only ever land on a page.
+        var wheelTarget by remember { mutableStateOf<Int?>(null) }
+        WheelSteps { step ->
+            if (pages.isNotEmpty()) {
+                val from = wheelTarget ?: pagerState.currentPage
+                wheelTarget = (from + step).coerceIn(0, pages.size - 1)
+            }
+        }
+        LaunchedEffect(wheelTarget) {
+            val target = wheelTarget ?: return@LaunchedEffect
+            // A fast spin retargets while this is still animating; the effect
+            // restarts, cancelling the old animation, so a spin resolves to one
+            // travel to the latest page instead of a queue of single steps.
+            pagerState.animateScrollToPage(target)
+            if (wheelTarget == target) wheelTarget = null
+        }
 
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    // The tap-to-reveal-chrome gesture lives on each page's
-                    // own content rather than on the Pager itself, so it
-                    // never competes with the Pager's own swipe handling.
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectTapGestures(onTap = { showChrome = !showChrome })
-                            },
-                    ) {
-                        PageBody(
-                            words = words,
-                            range = pagination.pages[page],
-                            paragraphBreakAfter = paragraphBreakAfter,
-                            isItalicWord = isItalicWord,
-                            isTitleWord = isTitleWord,
-                            titleColor = titleColor,
-                            applyColor = applyColor,
-                            applyUnderline = applyUnderline,
-                            fontFamily = fontFamily,
-                            fontSizeSp = safeFontSizeSp,
-                            marginDp = marginDp,
-                            topPaddingDp = topChromeDp,
-                            bottomPaddingDp = bottomChromeDp,
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val density = LocalDensity.current
+                // Real available pixels from the actual dialog window, not
+                // LocalConfiguration's idea of the screen - those disagree once
+                // system insets are involved, and measuring against the wrong
+                // height is another way to clip the last line.
+                val textWidthPx = (constraints.maxWidth - with(density) { marginDp.toPx() } * 2f)
+                    .roundToInt().coerceAtLeast(1)
+                val textHeightPx = (
+                    constraints.maxHeight -
+                        with(density) { topPadDp.toPx() } -
+                        with(density) { bottomPadDp.toPx() }
+                    ).coerceAtLeast(1f)
+
+                LaunchedEffect(bookId, textWidthPx, textHeightPx, fontKey, safeFontSizeSp) {
+                    // Re-measuring (rotation, font change) must not lose the
+                    // reader's place, so the current page's first word is the
+                    // anchor to come back to.
+                    val anchor = currentWord()
+                    val cacheKey = "$bookId|${words.size}|$textWidthPx|" +
+                        "${textHeightPx.roundToInt()}|$fontKey|$safeFontSizeSp"
+
+                    val cached = PageCache.get(cacheKey)
+                    val built = if (cached != null) {
+                        cached
+                    } else {
+                        pages = emptyList()
+                        progress = 0f
+                        val probe = LineStartsProbe { from, to ->
+                            measureLineStarts(
+                                measurer, bodyStyle, textWidthPx, words, from, to,
+                                paragraphBreakAfter, isItalicWord, isTitleWord,
+                                titleColor, applyColor, applyUnderline,
+                            )
+                        }
+                        // One measurement on this thread first: it settles how many
+                        // lines really fit, and resolves the font here rather than
+                        // on the worker below.
+                        val linesPerPage = measureLinesPerPage(
+                            measurer, bodyStyle, textWidthPx, textHeightPx, words,
+                            paragraphBreakAfter, isItalicWord, isTitleWord,
+                            titleColor, applyColor, applyUnderline,
                         )
+                        val paginate = {
+                            buildMeasuredPages(
+                                wordCount = words.size,
+                                linesPerPage = linesPerPage,
+                                probeWords = PROBE_WORDS,
+                                probe = probe,
+                            ) { done ->
+                                if ((done * 100).toInt() != (progress * 100).toInt()) {
+                                    progress = done
+                                }
+                            }
+                        }
+                        // Laying out a novel is seconds of work, so it runs off the
+                        // main thread. If a device objects to text layout on a
+                        // worker it is retried here rather than left broken - but
+                        // cancellation has to keep propagating, or closing the
+                        // reader mid-pagination would be "caught" and then
+                        // repeated synchronously on the main thread.
+                        var measured: List<IntRange>
+                        try {
+                            measured = withContext(Dispatchers.Default) { paginate() }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (workerRefused: Throwable) {
+                            measured = try {
+                                paginate()
+                            } catch (givenUp: Throwable) {
+                                emptyList()
+                            }
+                        }
+                        measured
+                    }
+
+                    if (built.isEmpty()) {
+                        onClose(anchor)
+                        return@LaunchedEffect
+                    }
+                    PageCache.put(cacheKey, built)
+                    pages = built
+                    pagerState.scrollToPage(pageOfWord(built, anchor))
+                }
+
+                if (pages.isEmpty()) {
+                    PaginatingIndicator(progress = progress)
+                } else {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        key = { it },
+                    ) { page ->
+                        // The tap target lives on the page content rather than
+                        // wrapping the Pager, so it never competes with the
+                        // Pager's own drag handling.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    detectTapGestures(onTap = { showChrome = !showChrome })
+                                },
+                        ) {
+                            Text(
+                                // Keyed on the page's own word range, not on the
+                                // pages list: comparing a few-thousand-entry list
+                                // on every recomposition of every visible page
+                                // costs more than the text it guards.
+                                text = remember(pages[page], titleColor) {
+                                    buildRangeText(
+                                        words, pages[page], paragraphBreakAfter,
+                                        isItalicWord, isTitleWord, titleColor,
+                                        applyColor, applyUnderline,
+                                    )
+                                },
+                                style = bodyStyle,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(
+                                        start = marginDp,
+                                        end = marginDp,
+                                        top = topPadDp,
+                                        bottom = bottomPadDp,
+                                    ),
+                            )
+                        }
                     }
                 }
 
                 EreaderChrome(
-                    pageNumber = pagerState.currentPage + 1,
-                    pageCount = pageCount,
+                    pageNumber = if (pages.isEmpty()) 0 else pagerState.currentPage + 1,
+                    pageCount = pages.size,
                     showClose = showChrome,
-                    onClose = closeToCurrentPage,
+                    onClose = close,
                 )
             }
         }
@@ -239,49 +322,128 @@ fun EreaderScreen(
 }
 
 @Composable
-private fun PageBody(
-    words: List<String>,
-    range: IntRange,
-    paragraphBreakAfter: BooleanArray,
-    isItalicWord: BooleanArray,
-    isTitleWord: BooleanArray,
-    titleColor: Color,
-    applyColor: Boolean,
-    applyUnderline: Boolean,
-    fontFamily: FontFamily,
-    fontSizeSp: Int,
-    marginDp: Dp,
-    topPaddingDp: Dp,
-    bottomPaddingDp: Dp,
-) {
-    val text = remember(range, isItalicWord, isTitleWord, titleColor, applyColor, applyUnderline) {
-        buildPageText(
-            words, range, paragraphBreakAfter, isItalicWord, isTitleWord,
-            titleColor, applyColor, applyUnderline,
-        )
+private fun PaginatingIndicator(progress: Float) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(progress = { progress.coerceIn(0f, 1f) })
+            Text(
+                "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
     }
-    Text(
-        text = text,
-        fontFamily = fontFamily,
-        fontSize = fontSizeSp.sp,
-        lineHeight = (fontSizeSp * 1.45f).sp,
-        color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(
-                start = marginDp,
-                end = marginDp,
-                top = topPaddingDp,
-                bottom = bottomPaddingDp,
-            ),
-    )
 }
 
-// Full original punctuation (including quote marks) is already present on the
-// words that carry it, so unlike the RSVP single-word display this needs no
-// synthetic quote-wrapping - reading several words together supplies the
-// context RSVP mode has to fake.
-private fun buildPageText(
+/**
+ * Lays out `words[from..to]` and reports the first word of each visual line.
+ *
+ * Line starts come back as character offsets, so each is mapped to the first word
+ * beginning at or after it. A blank line (the gap between paragraphs) therefore
+ * reports the first word of the paragraph following it, which is why
+ * [buildMeasuredPages] tolerates equal consecutive entries.
+ */
+private fun measureLineStarts(
+    measurer: TextMeasurer,
+    style: TextStyle,
+    widthPx: Int,
+    words: List<String>,
+    from: Int,
+    to: Int,
+    paragraphBreakAfter: BooleanArray,
+    isItalicWord: BooleanArray,
+    isTitleWord: BooleanArray,
+    titleColor: Color,
+    applyColor: Boolean,
+    applyUnderline: Boolean,
+): IntArray {
+    val offsets = IntArray(to - from + 1)
+    val text = buildRangeText(
+        words, from..to, paragraphBreakAfter, isItalicWord, isTitleWord,
+        titleColor, applyColor, applyUnderline, offsets,
+    )
+    val layout = measurer.measure(
+        text = text,
+        style = style,
+        softWrap = true,
+        constraints = Constraints(maxWidth = widthPx),
+    )
+    val out = IntArray(layout.lineCount)
+    for (line in 0 until layout.lineCount) {
+        out[line] = from + firstWordAtOrAfter(offsets, layout.getLineStart(line))
+    }
+    return out
+}
+
+/** How many whole lines fit the available height, from real line metrics. */
+private fun measureLinesPerPage(
+    measurer: TextMeasurer,
+    style: TextStyle,
+    widthPx: Int,
+    heightPx: Float,
+    words: List<String>,
+    paragraphBreakAfter: BooleanArray,
+    isItalicWord: BooleanArray,
+    isTitleWord: BooleanArray,
+    titleColor: Color,
+    applyColor: Boolean,
+    applyUnderline: Boolean,
+): Int {
+    if (words.isEmpty()) return 1
+    val to = (PROBE_WORDS - 1).coerceAtMost(words.size - 1)
+    val text = buildRangeText(
+        words, 0..to, paragraphBreakAfter, isItalicWord, isTitleWord,
+        titleColor, applyColor, applyUnderline,
+    )
+    val layout = measurer.measure(
+        text = text,
+        style = style,
+        softWrap = true,
+        constraints = Constraints(maxWidth = widthPx),
+    )
+    if (layout.lineCount == 0) return 1
+    val top = layout.getLineTop(0)
+    var fit = 0
+    for (line in 0 until layout.lineCount) {
+        if (layout.getLineBottom(line) - top <= heightPx) fit = line + 1 else break
+    }
+    return fit.coerceAtLeast(1)
+}
+
+/** Index (relative to the block) of the first word starting at or after [offset]. */
+private fun firstWordAtOrAfter(offsets: IntArray, offset: Int): Int {
+    var lo = 0
+    var hi = offsets.size - 1
+    var found = offsets.size
+    while (lo <= hi) {
+        val mid = (lo + hi) ushr 1
+        if (offsets[mid] >= offset) {
+            found = mid
+            hi = mid - 1
+        } else {
+            lo = mid + 1
+        }
+    }
+    return found
+}
+
+/**
+ * The text of a word range, used for measuring *and* for drawing.
+ *
+ * Both callers going through this one function is the guarantee that the layout
+ * pagination measured is the layout the reader draws. [wordStartOffsets], when
+ * given, receives the character offset each word begins at, which is how measured
+ * line starts are mapped back to word indices.
+ *
+ * A paragraph break after the range's last word is deliberately not emitted: a
+ * trailing blank line would count against the page's line budget while showing
+ * nothing.
+ *
+ * Unlike the RSVP display this needs no synthetic quote wrapping - the words
+ * already carry their own punctuation, and reading several together supplies the
+ * context a single flashed word has to fake.
+ */
+internal fun buildRangeText(
     words: List<String>,
     range: IntRange,
     paragraphBreakAfter: BooleanArray,
@@ -290,12 +452,17 @@ private fun buildPageText(
     titleColor: Color,
     applyColor: Boolean,
     applyUnderline: Boolean,
+    wordStartOffsets: IntArray? = null,
 ): AnnotatedString = buildAnnotatedString {
     var firstOnLine = true
     for (i in range) {
         val w = words.getOrNull(i) ?: continue
         if (!firstOnLine) append(' ')
         firstOnLine = false
+        wordStartOffsets?.let { offsets ->
+            val slot = i - range.first
+            if (slot in offsets.indices) offsets[slot] = length
+        }
         val isTitle = i in isTitleWord.indices && isTitleWord[i]
         val isItalic = i in isItalicWord.indices && isItalicWord[i]
         withStyle(
@@ -306,8 +473,8 @@ private fun buildPageText(
                 textDecoration = if (isTitle && applyUnderline) TextDecoration.Underline else null,
             )
         ) { append(w) }
-        val isParaEnd = i < paragraphBreakAfter.size && paragraphBreakAfter[i]
-        if (isParaEnd) {
+        val breaksHere = i < paragraphBreakAfter.size && paragraphBreakAfter[i]
+        if (breaksHere && i < range.last) {
             append("\n\n")
             firstOnLine = true
         }
@@ -323,9 +490,6 @@ private fun EreaderChrome(
 ) {
     val lp = LocalIsLightPhone.current
     Box(modifier = Modifier.fillMaxSize()) {
-        // Collapsed by default so it never sits over the text - tap anywhere
-        // on the page (see the tap handler in the pager content above) to
-        // reveal it, same as the RSVP reader's own top bar.
         if (showClose) {
             IconButton(
                 onClick = onClose,
@@ -336,15 +500,17 @@ private fun EreaderChrome(
                 Icon(Icons.Default.Close, contentDescription = "Close ereader")
             }
         }
-        Text(
-            "$pageNumber / $pageCount",
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 20.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(
-                alpha = if (lp) LpContrast.floor(0.7f, 0.85f) else 0.7f,
-            ),
-        )
+        if (pageCount > 0) {
+            Text(
+                "$pageNumber / $pageCount",
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 20.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(
+                    alpha = if (lp) LpContrast.floor(0.7f, 0.85f) else 0.7f,
+                ),
+            )
+        }
     }
 }

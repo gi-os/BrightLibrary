@@ -129,6 +129,26 @@ fun WheelScroll(state: ScrollableState, active: Boolean = true) {
 }
 
 /**
+ * Point the wheel at something that moves in whole steps rather than pixels.
+ *
+ * [WheelScroll] is for scrollers, where a notch is a distance. Pagers, carousels
+ * and anything else that only rests at discrete positions need the other shape: a
+ * notch is one step, and the caller decides what a step means. Feeding such a
+ * thing pixels instead leaves it stranded between two positions, because snapping
+ * is normally the tail end of a *gesture* and a wheel notch is not one.
+ *
+ * Each call is one step, direction only. The [ARM_NOTCHES] guard releases its held
+ * notches together, which as a distance is right - nothing deliberate is lost -
+ * but as steps would silently skip a position, so the magnitude is dropped here.
+ */
+@Composable
+fun WheelSteps(active: Boolean = true, onStep: (Int) -> Unit) {
+    ArmedNotches(active) { notches ->
+        if (notches > 0) onStep(1) else if (notches < 0) onStep(-1)
+    }
+}
+
+/**
  * The wheel inside a dialog or a bottom sheet.
  *
  * A Compose `Dialog` — and a Material `ModalBottomSheet`, which is one underneath — is a
