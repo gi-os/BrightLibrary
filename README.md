@@ -7,13 +7,15 @@ engine, both ebook parsers and the whole gesture model are untouched here. Every
 this fork adds is presentation: a true-black theme, a hardware wheel, and a package
 identity that installs alongside any upstream FastRead build without colliding.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.1.0-light.1`.
-The latest published release is `build-18` (`1.1.0-light.1-b18`), tagged 2026-07-29.
-CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to
-`main` — see [Building](#building) below.
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.2.0-light.1`,
+bumped for the full-page ereader mode below. CI stamps `versionCode` and appends
+`-bN` to `baseVersionName` on every push to `main` — see [Building](#building) below.
 
 ### What's working today
 
+- Tap the reader's three-line context preview (instead of holding it) to open a
+  full-page ereader: swipe or turn the wheel to move between pages, with an
+  iOS 6-style 3D flip, landing back in RSVP mode wherever you stopped.
 - Every upstream screen — library, reader, Settings, the in-reader quick-settings
   sheet — runs unmodified, repainted for true black.
 - The hardware wheel (`hw/LightKeys.kt` + `hw/Wheel.kt`) scrolls the library,
@@ -53,6 +55,7 @@ CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to
 `git log` from `c7d1a4f` onward is this fork; the repo's `Initial commit` is the
 upstream import point.
 
+- `2f38b86` — Add a full-page ereader mode, opened by tapping the context preview
 - `440482b` — Say in the README what the wheel needs
 - `09fc696` — Scroll with the wheel
 - `ff0bf61` — docs: add LightNoise and LightPods to the collection table
@@ -323,6 +326,9 @@ Most RSVP apps either bury you in buttons, lock features behind a subscription, 
 - **Per-letter slowdown** for long words — give your eyes a few extra milliseconds on the hard ones.
 - **Bionic reading** mode that bolds the leading letters of each word; apply it to the focal word, the context lines, both, or neither.
 - **Per-book progress** saved automatically and resumed on the next open.
+- **Full-page ereader mode.** Tap the context preview instead of holding it to
+  open a whole page of the book; swipe or turn the wheel to move between pages,
+  with an iOS 6-style 3D flip. Closing it resumes RSVP from wherever you landed.
 
 ### Library
 
