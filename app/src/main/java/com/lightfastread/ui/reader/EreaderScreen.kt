@@ -221,7 +221,10 @@ fun EreaderScreen(
                             // GraphicsLayerScope is itself a Density, so this is the
                             // layer's own scale factor, not the outer LocalDensity - using
                             // that here would double-apply the shadowed `density` name.
-                            cameraDistance = 8f * density * 10f
+                            // Explicit `this.` because the outer LocalDensity val
+                            // of the same name otherwise wins simple-name resolution
+                            // over GraphicsLayerScope's own inherited Density.density.
+                            cameraDistance = 8f * this.density * 10f
                         },
                 ) {
                     PageBody(
