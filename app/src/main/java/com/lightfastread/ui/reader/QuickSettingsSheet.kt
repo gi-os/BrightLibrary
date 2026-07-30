@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import com.lightfastread.data.Fonts
 import com.lightfastread.data.SettingsRepository
 import com.lightfastread.data.SwipeMode
+import com.lightfastread.hw.WheelInDialog
+import com.lightfastread.hw.WheelScroll
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,12 +41,17 @@ fun QuickSettingsSheet(onDismiss: () -> Unit) {
     val settingsRepo = remember { SettingsRepository.get(context) }
     val settings by settingsRepo.state
     val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp / 2
+    val scroll = rememberScrollState()
+    WheelScroll(scroll)
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        // ModalBottomSheet is a dialog underneath, and a dialog is its own
+        // window. Without this the wheel goes dead while the sheet is open.
+        WheelInDialog()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = maxSheetHeight)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
             Text("Text", style = MaterialTheme.typography.titleMedium)

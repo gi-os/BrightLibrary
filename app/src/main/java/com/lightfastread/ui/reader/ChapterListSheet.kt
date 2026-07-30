@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lightfastread.data.Chapter
+import com.lightfastread.hw.WheelScroll
 
 @Composable
 fun ChapterListSheet(
@@ -42,6 +43,7 @@ fun ChapterListSheet(
     val currentChapterIdx = chapters.indexOfLast { it.startWordIndex <= currentIndex }
         .coerceAtLeast(0)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentChapterIdx)
+    WheelScroll(listState)
     CustomBottomSheet(onDismiss = onDismiss) {
         Text(
             "Chapters",

@@ -2,10 +2,12 @@ package com.lightfastread
 
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
@@ -14,12 +16,40 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lightfastread.data.SettingsRepository
 import com.lightfastread.data.ThemeMode
+import com.lightfastread.hw.LightKey
+import com.lightfastread.hw.LightKeys
+import com.lightfastread.hw.LocalWheelBus
+import com.lightfastread.hw.WheelBus
 import com.lightfastread.ui.home.HomeScreen
 import com.lightfastread.ui.reader.ReaderScreen
 import com.lightfastread.ui.settings.SettingsScreen
 import com.lightfastread.ui.theme.FastReadTheme
 
 class MainActivity : ComponentActivity() {
+
+    /** Wheel notches on their way to whichever screen is up. */
+    private val wheel = WheelBus()
+
+    // Every hardware key arrives here before the view hierarchy sees it - the
+    // DecorView calls the window callback first - so the wheel wins even when
+    // something focusable is under it. Both halves of a notch are consumed: one
+    // notch is a complete DOWN+UP pair, and letting the UP through would let a
+    // text field read it as a keypress.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        when (LightKeys.of(event)) {
+            LightKey.WheelUp -> {
+                if (event.action == KeyEvent.ACTION_DOWN) wheel.send(1)
+                return true
+            }
+            LightKey.WheelDown -> {
+                if (event.action == KeyEvent.ACTION_DOWN) wheel.send(-1)
+                return true
+            }
+            else -> Unit
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Transparent bars over a black window. LightOS draws no persistent
@@ -43,7 +73,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
             FastReadTheme(themeMode = settings.themeMode) {
-                AppNav()
+                // Every screen below can reach the wheel; the sheets reach it too,
+                // through their own windows. See hw/Wheel.kt.
+                CompositionLocalProvider(LocalWheelBus provides wheel) {
+                    AppNav()
+                }
             }
         }
     }

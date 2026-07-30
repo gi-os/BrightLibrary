@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.lightfastread.hw.WheelInDialog
 import com.lightfastread.ui.theme.LocalIsLightPhone
 import com.lightfastread.ui.theme.lpBorder
 import kotlinx.coroutines.launch
@@ -88,6 +89,10 @@ fun CustomBottomSheet(
                 // text floating over the reader.
                 border = lpBorder(),
             ) {
+                // A Dialog is its own window, so the sheet has to pick the wheel
+                // up itself - the Activity's dispatchKeyEvent never runs while
+                // this is on screen.
+                WheelInDialog()
                 Column(modifier = Modifier.fillMaxWidth()) {
                     BottomSheetDragHandle(
                         onDrag = { dy ->

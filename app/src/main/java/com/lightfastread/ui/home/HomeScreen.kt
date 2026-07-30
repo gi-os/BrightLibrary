@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -28,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import com.lightfastread.hw.WheelScroll
 import com.lightfastread.ui.theme.lpBorder
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -44,6 +46,8 @@ fun HomeScreen(
     var importError by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<Book?>(null) }
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    WheelScroll(listState)
 
     val pickFile = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -109,6 +113,7 @@ fun HomeScreen(
                 EmptyState(modifier = Modifier.align(Alignment.Center))
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     // Scaffold does not reserve space for the FAB, and with only
                     // ~472dp of height on the LPIII the last book row ends up

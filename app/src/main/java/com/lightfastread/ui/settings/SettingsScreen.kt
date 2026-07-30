@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lightfastread.data.BionicMode
+import com.lightfastread.hw.WheelScroll
 import com.lightfastread.data.FontFace
 import com.lightfastread.data.Fonts
 import com.lightfastread.data.SettingsRepository
@@ -49,6 +50,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { SettingsRepository.get(context) }
     val s by repo.state
+    // The longest screen in the app, and the one the wheel earns its keep on.
+    val scroll = rememberScrollState()
+    WheelScroll(scroll)
 
     Scaffold(
         topBar = {
@@ -66,7 +70,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
             SectionTitle("Input")

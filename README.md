@@ -23,9 +23,30 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 | `surfaceVariant` and the dialog containers stay faintly grey | These back Material's *tracks* (progress bar, slider rails, switch tracks) and its *ephemeral* containers (AlertDialog, menus). Pure black would erase the tracks entirely, and a scrim over an already-black background tints nothing — a black dialog on a black screen is unanchored text. |
 | Black `windowBackground` in `themes.xml` | The launch theme is what Android paints during cold start, before Compose draws. The stock `Material.Light` parent flashed white — a full-brightness strobe on every launch. |
 | Book list padded past the FAB; bottom sheets allowed to go taller | The LPIII is roughly **411 × 472 dp** — normal width, about half the usual height. Anything sized as a fraction of screen height needed a second look. `Scaffold` reserves no space for the FAB, so the last book row sat permanently under "Add book". |
+| The brightness wheel scrolls every list | The LPIII has a hardware wheel and upstream has never heard of it. Lists here are the one place the touchscreen is worst — a 472dp-tall panel behind matte glass, with the whole reader surface already spoken for by hold-and-swipe gestures. |
 | `targetSdk` 34; package fully renamed to `com.lightfastread` | LightOS is Android 14, and the light-sdk emulator profile is API 34; no reason to opt into 35/36 behaviour the device will never see. Both `namespace` and `applicationId` are `com.lightfastread`, so this shares no identifier with upstream FastRead — not the package, the R class, or the permission and provider authorities AndroidX derives from them. It installs cleanly alongside any other FastRead build. |
 
 Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
+
+### The wheel
+
+Turning the phone's wheel scrolls the library, the Settings screen, the chapter list, the
+bookmark list and the quick-settings sheet. It is not a rotary encoder: LightOS relabels an
+optical sensor's scancodes as `WHEEL_CCW` / `WHEEL_CW` and dispatches them as ordinary key
+events, so `hw/LightKeys.kt` resolves those labels at runtime and falls back to the raw
+scancodes if Light moves them.
+
+Notches arrive faster than a frame, so applying each one where it lands gives a stack of
+jumps rather than a scroll. `hw/Wheel.kt` treats a notch as a debt and pays off a share of it
+per frame, and it ignores the first notch after a pause — the wheel sits under a thumb and
+catches stray brushes.
+
+Two things this fork needed that the shared module didn't have. The sheets are `Dialog`s,
+and a dialog is a window of its own: the Activity's `dispatchKeyEvent` never runs while one
+is up, so `WheelInDialog()` borrows the sheet window's callback for as long as the sheet
+lives. And the wheel *click* and camera button are deliberately untouched — those belong to
+[LightControl](https://github.com/gi-os/LightControl), which owns them phone-wide and passes
+bare turns through precisely so apps can scroll per notch.
 
 ### Icon
 
@@ -284,6 +305,7 @@ All settings persist via SharedPreferences (JSON-encoded, no database). They can
 app/src/main/java/com/fastread/
 ├── MainActivity.kt          # NavHost + theme wiring
 ├── data/                    # Book, Settings, repositories (SharedPreferences + JSON)
+├── hw/                      # Light Phone III wheel: key recognition + notch bus
 ├── parser/                  # EPUB, MOBI, HTML strip — all hand-written
 └── ui/
     ├── home/                # Library list + SAF importer
