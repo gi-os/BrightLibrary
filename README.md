@@ -1,3 +1,85 @@
+## Gio's LPIII fork — status as of 2026-07-30
+
+This repo forks the FastRead RSVP reader for one piece of hardware: the Light Phone
+III's 3.92", 1080×1240 black-and-white OLED (see [Credits](#credits) for the exact
+upstream lineage — it's more tangled than a single fork arrow). Upstream's reading
+engine, both ebook parsers and the whole gesture model are untouched here. Everything
+this fork adds is presentation: a true-black theme, a hardware wheel, and a package
+identity that installs alongside any upstream FastRead build without colliding.
+
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.1.0-light.1`.
+The latest published release is `build-18` (`1.1.0-light.1-b18`), tagged 2026-07-29.
+CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to
+`main` — see [Building](#building) below.
+
+### What's working today
+
+- Every upstream screen — library, reader, Settings, the in-reader quick-settings
+  sheet — runs unmodified, repainted for true black.
+- The hardware wheel (`hw/LightKeys.kt` + `hw/Wheel.kt`) scrolls the library,
+  Settings, the chapter list, the bookmark list and the quick-settings sheet,
+  including inside `Dialog` sheets, which don't receive key events for free
+  (`WheelInDialog()` borrows the sheet window's own callback).
+- Package identity (`com.lightfastread`, both `namespace` and `applicationId`) is
+  fully separated from upstream FastRead, so this build and an upstream build
+  coexist on one device with no R-class or provider-authority collisions.
+- CI is green on `main`: unit tests, a signed release build, a certificate-fingerprint
+  check, and a launcher-icon check all gate the release before it publishes.
+
+### LPIII constraints that shaped this fork
+
+- **1080×1240 @ ~420dpi ≈ 411×472dp** — normal width, about half the usual Android
+  phone height. Anything sized as a fraction of screen height (bottom sheets, FAB
+  clearance in the library list) needed a second look against upstream's assumptions.
+- **Forced greyscale.** LightOS's black-and-white look is Android's accessibility
+  daltonizer pinned to monochromacy, not a hardware limit, but this fork doesn't fight
+  it — the theme is greyscale by construction. Title and ORP accents are remapped
+  through Rec. 709 luma into `0.62..1.0` so low-luma picks (the default red ORP
+  letter, luma ≈ 0.36) stay legible next to dimmed context lines instead of sinking
+  into them.
+- **Matte panel**, roughly a stop less perceived contrast than glossy glass — alphas
+  tuned for upstream's dark theme (0.45, 0.5) needed their floors lifted here: context
+  lines, the paragraph pilcrow, the progress readout, the zone guides.
+- **True black kills Material 3 tonal elevation.** Once every `surface*` role and
+  `surfaceTint` are pinned to `#000000`, nothing distinguishes an elevated row from
+  the background. Hairline `outline` edges (1dp) stand in for the tonal lift on book
+  rows, the top bar, the chapter strip and the bottom sheet. `surfaceVariant` and
+  dialog containers stay faintly grey on purpose, since Material's progress/slider/
+  switch tracks and ephemeral containers (AlertDialog, menus) need something to read
+  against — a scrim over black tints nothing.
+
+### Changelog (this fork's own commits)
+
+`git log` from `c7d1a4f` onward is this fork; the repo's `Initial commit` is the
+upstream import point.
+
+- `440482b` — Say in the README what the wheel needs
+- `09fc696` — Scroll with the wheel
+- `ff0bf61` — docs: add LightNoise and LightPods to the collection table
+- `8d47df9` — ci: trigger a second signed build to prove certificate stability
+- `4854065` — ci: fix the certificate digest parser
+- `12e4acc` — Sign every release with one stable key so installs can be updated
+- `b3f4c3f` — docs: add LightTip to the collection table
+- `bd2f354` — Make the reader's zone guides a toggle, off by default
+- `f135c55` — Add a LightFog-matched launcher icon
+- `9e09c25` — Swap descriptions in README.md table
+- `f1f9009` — docs: real screenshots, correct upstream credit, collection table
+- `4c48083` — Move package to com.lightfastread so it can never collide with FastRead
+- `19ff5b4` — Rename to LightFastread
+- `0947241` — docs: document the push-triggered versioned release flow
+- `885a95d` — ci: auto-publish a versioned APK on every push to main
+- `5029b18` — build: mark gradlew executable
+- `58d1025` — ci: fix startup failure and add Android SDK
+- `c7d1a4f` — Retune for Light Phone III: true-black OLED theme, greyscale palette, near-square layout
+
+Two upstream landmines worth knowing before you build this yourself: `gradlew` was
+committed as mode `100644` (CI dies with exit 126 until it's executable), and
+`gradle/gradle-daemon-jvm.properties` pins the Gradle daemon to **JetBrains JDK 21**
+— `setup-java` needs `distribution: jetbrains` to match, or Gradle tries to
+provision a second JDK over the network on every run.
+
+---
+
 # LightFastread
 
 **A fork of [FastRead](https://github.com/fluffyspace/FastRead) retuned for the Light Phone III's black-and-white OLED.**
