@@ -384,12 +384,12 @@ private fun ContextLine(
     )
 }
 
-private data class LinePagination(
+internal data class LinePagination(
     val lines: List<IntRange>,
     val wordToLine: IntArray,
 )
 
-private fun paginateByChars(
+internal fun paginateByChars(
     words: List<String>,
     paragraphBreakAfter: BooleanArray,
     charsPerLine: Int,
@@ -516,7 +516,7 @@ private fun endsWithQuote(s: String): Boolean {
     return false
 }
 
-private fun wrapInQuotes(word: String, openChar: Char): String {
+internal fun wrapInQuotes(word: String, openChar: Char): String {
     if (word.isEmpty()) return word
     val needLeading = !startsWithQuote(word)
     val needTrailing = !endsWithQuote(word)

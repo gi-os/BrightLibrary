@@ -54,7 +54,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.sqrt
+
+// How long a touch in the context-preview band (top half of the reading
+// surface) can be held before it stops counting as a tap-to-open-ereader
+// and instead falls through to the ordinary hold-to-speed-read gesture.
+private const val TAP_MAX_MS = 220L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,6 +104,7 @@ fun ReaderScreen(
     var isHolding by remember { mutableStateOf(false) }
     var showChapterList by rememberSaveable { mutableStateOf(false) }
     var showBookmarksList by rememberSaveable { mutableStateOf(false) }
+    var showEreader by rememberSaveable { mutableStateOf(false) }
     val historyBack = rememberSaveable(bookId, saver = IntListSaver) { mutableStateListOf<Int>() }
     val historyForward = rememberSaveable(bookId, saver = IntListSaver) { mutableStateListOf<Int>() }
     val bookmarks = bookRepo.books.firstOrNull { it.id == bookId }?.bookmarks ?: emptyList()
@@ -343,6 +350,36 @@ fun ReaderScreen(
                             return@awaitEachGesture
                         }
 
+                        // Top of the middle zone: the three-line context
+                        // preview lives here (WordDisplay's ContextLineWindow
+                        // fills the top half of this same Box). A quick tap
+                        // opens the full-page ereader at whatever page that
+                        // text is from; a longer hold falls through to the
+                        // ordinary speed-read zones below, just starting a
+                        // beat later.
+                        val contextBandEnd = height * 0.5f
+                        if (down.position.y < contextBandEnd) {
+                            val startPos = down.position
+                            var moved = false
+                            val releasedInTime = withTimeoutOrNull(TAP_MAX_MS) {
+                                while (true) {
+                                    val ev = awaitPointerEvent()
+                                    val ch = ev.changes.first()
+                                    val dx = ch.position.x - startPos.x
+                                    val dy = ch.position.y - startPos.y
+                                    if (dx * dx + dy * dy > 24f * 24f) moved = true
+                                    if (!ch.pressed) break
+                                }
+                            } != null
+                            if (releasedInTime) {
+                                if (!moved) showEreader = true
+                                return@awaitEachGesture
+                            }
+                            // Still held past the tap window: fall through to
+                            // the ordinary hold-to-speed-read logic below, using
+                            // the same `down`.
+                        }
+
                         // Middle 3/5: hold zones (always available alongside the swipe band).
                         val divider = width / 3f
                         if (down.position.x < divider) {
@@ -433,6 +470,10 @@ fun ReaderScreen(
                 ZoneOverlay(swipeMode = settings.swipeMode, bottomDeadZonePx = bottomDeadZonePx)
             }
 
+            val titleWordFlags = remember(book.chapters, words.size) {
+                computeTitleWordFlags(book.chapters, words.size)
+            }
+
             if (loading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -450,9 +491,6 @@ fun ReaderScreen(
                     textAlign = TextAlign.Center,
                 )
             } else {
-                val titleWordFlags = remember(book.chapters, words.size) {
-                    computeTitleWordFlags(book.chapters, words.size)
-                }
                 val quoteInfo = remember(words, paragraphBreakAfter) {
                     computeQuoteInfo(words, paragraphBreakAfter)
                 }
@@ -550,6 +588,25 @@ fun ReaderScreen(
                         bookRepo.toggleBookmark(bookId, idx)
                     },
                     onDismiss = { showBookmarksList = false },
+                )
+            }
+
+            if (showEreader) {
+                EreaderScreen(
+                    bookId = bookId,
+                    words = words,
+                    paragraphBreakAfter = paragraphBreakAfter,
+                    isItalicWord = italic,
+                    isTitleWord = titleWordFlags,
+                    titleColor = titleColor,
+                    titleStyle = settings.titleStyle,
+                    fontFamily = Fonts.familyFor(settings.fontFamily),
+                    fontSizeSp = settings.readerFontSizeSp,
+                    initialWordIndex = currentIndex,
+                    onClose = { newIndex ->
+                        showEreader = false
+                        jumpTo(newIndex)
+                    },
                 )
             }
         }

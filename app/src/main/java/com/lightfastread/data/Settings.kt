@@ -43,4 +43,9 @@ data class Settings(
     // word in and out. 0 = no fade, 1 = the entire interval is split equally
     // between fade-in and fade-out (no hold time at full opacity).
     val wordFadeFraction: Float = 0f,
+    // Body text size for the full-page ereader mode (tap the context window to
+    // open it). Independent of the giant RSVP focal word and the tiny
+    // three-line context preview - this is meant to be read normally, a full
+    // page at a time.
+    val readerFontSizeSp: Int = 22,
 )
