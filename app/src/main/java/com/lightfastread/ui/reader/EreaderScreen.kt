@@ -3,6 +3,7 @@ package com.lightfastread.ui.reader
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -147,10 +150,22 @@ fun EreaderScreen(
     ) { 0 }
     var pageOffset by remember(bookId, pageCount) { mutableFloatStateOf(initialPage.toFloat()) }
     val maxOffset = (pageCount - 1).toFloat()
+    var showChrome by remember(bookId) { mutableStateOf(false) }
+
+    // Single source of truth for "which page is on screen right now", read by
+    // both the flip renderer and the close handler below - closing always
+    // lands on exactly the page you're looking at, never a page computed a
+    // different way that could drift from it.
+    val clamped = pageOffset.coerceIn(0f, maxOffset)
+    val basePage = floor(clamped).toInt().coerceIn(0, pageCount - 1)
+    val frac = (clamped - basePage).coerceIn(0f, 1f)
+    val nextPage = (basePage + 1).coerceAtMost(pageCount - 1)
+    val angle = frac * 180f
+    val showPage = if (angle < 90f) basePage else nextPage
+    val rotation = if (angle < 90f) -angle else 180f - angle
 
     val closeToCurrentPage: () -> Unit = {
-        val shown = pageOffset.roundToInt().coerceIn(0, pageCount - 1)
-        onClose(pagination.pages.getOrNull(shown)?.first ?: initialWordIndex)
+        onClose(pagination.pages.getOrNull(showPage)?.first ?: initialWordIndex)
     }
 
     // Touch drag and the hardware wheel both drive this one ScrollableState,
@@ -196,35 +211,37 @@ fun EreaderScreen(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .scrollable(state = pageScrollableState, orientation = Orientation.Horizontal),
+                .scrollable(state = pageScrollableState, orientation = Orientation.Horizontal)
+                // A plain tap (no drag) toggles the close button - same
+                // collapsed-by-default, tap-to-reveal pattern as the RSVP
+                // reader's own top bar, so the button never sits over the
+                // text while you're just reading.
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { showChrome = !showChrome })
+                },
             color = MaterialTheme.colorScheme.background,
         ) {
-            val clamped = pageOffset.coerceIn(0f, maxOffset)
-            val basePage = floor(clamped).toInt().coerceIn(0, pageCount - 1)
-            val frac = (clamped - basePage).coerceIn(0f, 1f)
-            val nextPage = (basePage + 1).coerceAtMost(pageCount - 1)
-            val angle = frac * 180f
-            val showPage = if (angle < 90f) basePage else nextPage
-            val rotation = if (angle < 90f) -angle else 180f - angle
-
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
                             rotationY = rotation
-                            transformOrigin = TransformOrigin(0.5f, 0.5f)
-                            // Larger than Compose's default camera distance so
-                            // the flip reads as a card turning rather than a
-                            // sharp, distorted skew right before the edge-on
-                            // midpoint.
-                            // GraphicsLayerScope is itself a Density, so this is the
-                            // layer's own scale factor, not the outer LocalDensity - using
-                            // that here would double-apply the shadowed `density` name.
-                            // Explicit `this.` because the outer LocalDensity val
-                            // of the same name otherwise wins simple-name resolution
-                            // over GraphicsLayerScope's own inherited Density.density.
-                            cameraDistance = 8f * this.density * 10f
+                            // Pivot at the left edge - like a page hinged at
+                            // the spine - rather than the screen's center, so
+                            // this reads as a page turning over instead of
+                            // the whole screen spinning in place.
+                            transformOrigin = TransformOrigin(0f, 0.5f)
+                            // An edge pivot sweeps the full page width instead
+                            // of half of it, so it needs more camera distance
+                            // than a center pivot to avoid a hard perspective
+                            // skew near the edge-on midpoint.
+                            // GraphicsLayerScope is itself a Density; `this.`
+                            // is required because the outer LocalDensity val
+                            // of the same name otherwise wins simple-name
+                            // resolution over GraphicsLayerScope's own
+                            // inherited Density.density.
+                            cameraDistance = 8f * this.density * 24f
                         },
                 ) {
                     PageBody(
@@ -244,6 +261,7 @@ fun EreaderScreen(
                 EreaderChrome(
                     pageNumber = showPage + 1,
                     pageCount = pageCount,
+                    showClose = showChrome,
                     onClose = closeToCurrentPage,
                 )
             }
@@ -320,16 +338,26 @@ private fun buildPageText(
 }
 
 @Composable
-private fun EreaderChrome(pageNumber: Int, pageCount: Int, onClose: () -> Unit) {
+private fun EreaderChrome(
+    pageNumber: Int,
+    pageCount: Int,
+    showClose: Boolean,
+    onClose: () -> Unit,
+) {
     val lp = LocalIsLightPhone.current
     Box(modifier = Modifier.fillMaxSize()) {
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(top = 24.dp, start = 8.dp),
-        ) {
-            Icon(Icons.Default.Close, contentDescription = "Close ereader")
+        // Collapsed by default so it never sits over the text - tap anywhere
+        // on the page (see the tap handler on the Surface above) to reveal
+        // it, same as the RSVP reader's own top bar.
+        if (showClose) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 24.dp, start = 8.dp),
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Close ereader")
+            }
         }
         Text(
             "$pageNumber / $pageCount",
