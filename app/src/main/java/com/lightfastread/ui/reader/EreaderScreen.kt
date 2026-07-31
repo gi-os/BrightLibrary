@@ -1,12 +1,15 @@
 package com.lightfastread.ui.reader
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
@@ -19,6 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,6 +57,7 @@ import com.lightfastread.ui.theme.LpContrast
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // Full-page reading mode, opened by tapping the three-line context preview above
@@ -72,6 +78,35 @@ import kotlin.math.roundToInt
 /** Words per measuring block. ~8k characters: big enough to amortise, small
  *  enough that no single layout pass is expensive. */
 private const val PROBE_WORDS = 1500
+
+/**
+ * How far a slow drag must travel before the page turns, as a fraction of the
+ * page width.
+ *
+ * A Pager's own default is 0.5 - past halfway and it commits. That is right for a
+ * carousel you flick through, but a page turn wants more intent behind it than a
+ * thumb resting on a 3.9" screen can supply by accident.
+ *
+ * Only *slow* drags are affected: a deliberate flick still turns on velocity
+ * alone, whatever the distance. Kept short of 0.8 on purpose - past that, a drag
+ * that visibly moved most of the page still springs back, which reads as the page
+ * refusing to turn rather than as a firmer threshold.
+ */
+private const val PAGE_TURN_DRAG_FRACTION = 0.7f
+
+/**
+ * Wheel notches per page turn.
+ *
+ * The sensor emits a notch roughly every 35ms, so one notch per page made a
+ * single deliberate turn of the wheel fly through a handful of pages. Three
+ * notches is about a quarter-turn under the thumb: enough that a page turn is
+ * something you meant to do.
+ */
+private const val NOTCHES_PER_PAGE = 3
+
+/** A turn abandoned for this long starts counting again, matching hw/Wheel.kt's
+ *  own idle window, so a stray brush never banks toward a later real turn. */
+private const val WHEEL_IDLE_MS = 1_500L
 
 /**
  * Pagination survives closing and reopening the reader.
@@ -113,7 +148,12 @@ fun EreaderScreen(
     val safeFontSizeSp = fontSizeSp.coerceAtLeast(8)
 
     val marginDp: Dp = 20.dp
-    val topPadDp: Dp = 56.dp
+    // The top inset used to reserve room for the close button, but the button is
+    // hidden until tapped now, so reserving a permanent 56dp for it just wasted
+    // the top of every page. It gets an opaque backing instead (see
+    // EreaderChrome) and floats over the text for the moment it is on screen.
+    // The bottom still clears the always-visible page counter.
+    val topPadDp: Dp = 8.dp
     val bottomPadDp: Dp = 40.dp
 
     // The one style used for both measuring and drawing. Any difference between
@@ -154,17 +194,31 @@ fun EreaderScreen(
         // Activity's dispatchKeyEvent never runs while this is on screen.
         WheelInDialog()
 
-        // One notch is one page. The wheel used to be wired straight into the
-        // pager as a pixel scroller, which left it parked between two pages
-        // because a Pager only snaps at the end of a *gesture*, and the wheel's
-        // two-notch arming threshold made the first turn jump two pages at once.
-        // Notches now name a target page and the pager animates to it, so the
-        // wheel can only ever land on a page.
+        // The wheel used to be wired straight into the pager as a pixel scroller,
+        // which left it parked between two pages - a Pager only snaps at the end
+        // of a *gesture*, and a notch is not one. Notches now name a target page
+        // and the pager animates to it, so the wheel can only ever land on a page.
+        //
+        // It takes NOTCHES_PER_PAGE notches to move, because the sensor fires far
+        // faster than a thumb expects and one-notch-per-page ran away with itself.
         var wheelTarget by remember { mutableStateOf<Int?>(null) }
+        var notchesTowardTurn by remember { mutableIntStateOf(0) }
+        var lastNotchAtMs by remember { mutableLongStateOf(0L) }
         WheelSteps { step ->
             if (pages.isNotEmpty()) {
-                val from = wheelTarget ?: pagerState.currentPage
-                wheelTarget = (from + step).coerceIn(0, pages.size - 1)
+                val now = System.currentTimeMillis()
+                // Reversing, or picking the wheel up again after a pause, starts
+                // the count over rather than spending notches banked earlier.
+                val stale = now - lastNotchAtMs > WHEEL_IDLE_MS
+                val reversed = notchesTowardTurn != 0 && (notchesTowardTurn > 0) != (step > 0)
+                lastNotchAtMs = now
+                notchesTowardTurn = if (stale || reversed) step else notchesTowardTurn + step
+                if (abs(notchesTowardTurn) >= NOTCHES_PER_PAGE) {
+                    val direction = if (notchesTowardTurn > 0) 1 else -1
+                    notchesTowardTurn = 0
+                    val from = wheelTarget ?: pagerState.currentPage
+                    wheelTarget = (from + direction).coerceIn(0, pages.size - 1)
+                }
             }
         }
         LaunchedEffect(wheelTarget) {
@@ -272,6 +326,10 @@ fun EreaderScreen(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
                         key = { it },
+                        flingBehavior = PagerDefaults.flingBehavior(
+                            state = pagerState,
+                            snapPositionalThreshold = PAGE_TURN_DRAG_FRACTION,
+                        ),
                     ) { page ->
                         // The tap target lives on the page content rather than
                         // wrapping the Pager, so it never competes with the
@@ -491,11 +549,15 @@ private fun EreaderChrome(
     val lp = LocalIsLightPhone.current
     Box(modifier = Modifier.fillMaxSize()) {
         if (showClose) {
+            // Opaque, because the text now runs right up under it: the page no
+            // longer keeps a permanent gap at the top for a button that is only
+            // visible for a moment.
             IconButton(
                 onClick = onClose,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 24.dp, start = 8.dp),
+                    .padding(top = 8.dp, start = 8.dp)
+                    .background(MaterialTheme.colorScheme.background, CircleShape),
             ) {
                 Icon(Icons.Default.Close, contentDescription = "Close ereader")
             }
