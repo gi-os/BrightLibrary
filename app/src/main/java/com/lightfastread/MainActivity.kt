@@ -24,6 +24,8 @@ import com.lightfastread.ui.home.HomeScreen
 import com.lightfastread.ui.reader.ReaderScreen
 import com.lightfastread.ui.settings.SettingsScreen
 import com.lightfastread.ui.theme.FastReadTheme
+import com.lightfastread.report.CrashLog
+import com.lightfastread.report.ReportOverlay
 
 class MainActivity : ComponentActivity() {
 
@@ -52,6 +54,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // First thing, before anything else can throw: the handler chains onto whatever is
+        // already installed and only writes a file, so it is safe this early.
+        CrashLog.install(this)
         // Transparent bars over a black window. LightOS draws no persistent
         // system bars, but on a normal Android device or the LPIII emulator this
         // keeps the chrome from punching two grey slabs into a black screen.
@@ -78,6 +83,10 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalWheelBus provides wheel) {
                     AppNav()
                 }
+                // Shake to report, the crash offer on next launch, and the app's own noticed
+                // failures. A sibling, not a wrapper — the sheet is its own window, so it covers
+                // the app whether or not it contains it.
+                ReportOverlay()
             }
         }
     }

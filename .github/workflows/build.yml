@@ -72,6 +72,10 @@ jobs:
       # the wall time on a cache-cold runner.
       - name: Build and test
         run: ./gradlew assembleDebug assembleRelease testDebugUnitTest --stacktrace
+        env:
+          # Shake-to-report posts issues with this. Absent, the build still works —
+          # reports queue on the phone until a build that has the key installs over it.
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
 
       # The signing certificate must never change, or every already-installed
       # copy becomes un-updatable. Pin its fingerprint in the repo and fail loudly

@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -658,15 +659,30 @@ private suspend fun runWordLoop(
     onLiveWpm: (Float) -> Unit,
     getPauseAfterMs: (Int, Long) -> Long = { _, _ -> 0L },
 ) {
+    // Driven by the frame clock, not by a fixed 8 ms tick.
+    //
+    // The panel is 60 Hz. A delay(8) loop woke this coroutine roughly twice per frame, and
+    // every wakeup calls onLiveWpm and can advance the word — both of which write Compose
+    // state that nothing can draw until the next frame arrives, so half the work was thrown
+    // away before it reached the screen. withFrameNanos does the same arithmetic once per
+    // frame instead.
+    //
+    // The second effect matters more than the first: withFrameNanos is not scheduled at all
+    // when the reader is not producing frames, so a session left running in the background
+    // stops burning CPU on words nobody is reading. delay(8) kept going regardless.
+    //
+    // The ramp still reads the wall clock. It is a ramp *in seconds since you pressed*, and
+    // deriving it from accumulated frame deltas would quietly change its meaning across a
+    // pause.
     val startTime = System.currentTimeMillis()
-    var lastTickMs = startTime
+    var lastFrameNs = 0L
     var progress = 0f
     while (true) {
-        delay(8)
-        val now = System.currentTimeMillis()
-        val elapsedSinceDown = now - startTime
-        val deltaMs = (now - lastTickMs).coerceAtLeast(0)
-        lastTickMs = now
+        val frameNs = withFrameNanos { it }
+        val elapsedSinceDown = System.currentTimeMillis() - startTime
+        // The first frame only establishes the baseline — it has no interval to contribute.
+        val deltaMs = if (lastFrameNs == 0L) 0L else (frameNs - lastFrameNs) / 1_000_000L
+        lastFrameNs = frameNs
 
         val ramp = if (rampUpMs <= 0) 1f
         else (elapsedSinceDown.toFloat() / rampUpMs.toFloat()).coerceIn(0f, 1f)
@@ -682,7 +698,10 @@ private suspend fun runWordLoop(
                 val pauseMs = getPauseAfterMs(cur, wordIntervalMs)
                 if (pauseMs > 0) {
                     delay(pauseMs)
-                    lastTickMs = System.currentTimeMillis()
+                    // A punctuation pause is deliberate dead time, not reading time. Re-baseline
+                    // on the next frame so the interval spent waiting does not come back as a
+                    // burst of skipped words.
+                    lastFrameNs = withFrameNanos { it }
                     progress = 1f
                 }
                 if (cur < wordCount - 1) setCurrent(cur + 1) else { progress = 0f; break }
