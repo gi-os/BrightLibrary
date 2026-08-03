@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 # A newer push supersedes an in-flight one; no point building a commit that is
 # already stale.
@@ -20,6 +21,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Resolving light-common from GitHub Packages, which has no anonymous read. The runner
+      # exports GITHUB_ACTOR but not GITHUB_TOKEN, so the token has to be handed in. GPR_* wins
+      # if set, for the case where a repo-scoped token is not accepted for another repo's package.
+      GPR_USER: ${{ secrets.GPR_USER }}
+      GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4

@@ -24,8 +24,8 @@ import com.lightfastread.ui.home.HomeScreen
 import com.lightfastread.ui.reader.ReaderScreen
 import com.lightfastread.ui.settings.SettingsScreen
 import com.lightfastread.ui.theme.FastReadTheme
-import com.lightfastread.report.CrashLog
-import com.lightfastread.report.ReportOverlay
+import com.gios.light.common.report.LightReport
+import com.gios.light.common.report.ReportOverlay
 
 class MainActivity : ComponentActivity() {
 
@@ -56,7 +56,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // First thing, before anything else can throw: the handler chains onto whatever is
         // already installed and only writes a file, so it is safe this early.
-        CrashLog.install(this)
+        LightReport.install(
+            context = this,
+            appName = "LightFastread",
+            label = "fastread",
+            token = BuildConfig.REPORT_TOKEN,
+        )
         // Transparent bars over a black window. LightOS draws no persistent
         // system bars, but on a normal Android device or the LPIII emulator this
         // keeps the chrome from punching two grey slabs into a black screen.

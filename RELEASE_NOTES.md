@@ -1,31 +1,44 @@
-## LightFastread v1.4 — Shake to report, and the word loop runs on frames
+## LightFastread v1.5 — The shake asks instead of interrupting
 
-**Two changes: the app can file its own bug reports, and the RSVP loop stops doing twice the work
-the screen can use.**
+**Two changes, one of them invisible: shaking the phone no longer throws a report sheet over what
+you were doing, and the reporting code behind it is now a shared library rather than a copy kept
+in this app.**
 
-### The word loop was ticking at 125Hz on a 60Hz panel
+### The shake offers a chip, not a sheet
 
-`runWordLoop` advanced on a fixed `delay(8)`. The Light Phone III's panel is 60Hz, so that woke
-the coroutine roughly twice per frame, and every wakeup published a live WPM and could advance
-the word — both of which write Compose state that nothing can draw until the next frame arrives.
-Half of it was thrown away before it reached the screen.
+The first version got the shape of the question wrong. A shake is a gesture the phone can
+misread — and the cost of misreading it was paid every single time, because a full-screen sheet
+landed on top of whatever you were looking at to ask about a problem that may not have existed. On
+a 3.92" panel that is a bad trade against a report that might not be real.
 
-It runs on `withFrameNanos` now: the same arithmetic, once per frame. The second effect matters
-more than the first — a frame callback is not scheduled at all when the reader is not producing
-frames, so a session left running in the background stops burning CPU on words nobody is reading.
-`delay(8)` kept going regardless.
+So the offer is small, it sits out of the way, and **silence is an answer**. A shake puts a
+"SEND ERROR?" chip in the bottom corner; ignore it for four seconds and it fades. Nothing is lost
+by ignoring it: an unsent crash log stays on disk and is offered again on the next launch, and a
+failure the app noticed itself will not ask again for an hour. Only a tap opens the sheet.
 
-Reading speed is unchanged. Word timing was already derived from the measured interval rather
-than assumed from the tick, so it follows the frame clock without drifting, and the ramp still
-reads the wall clock because it is a ramp in seconds since you pressed. Punctuation pauses
-re-baseline on the frame after the pause, so waiting does not come back as a burst of skipped
-words.
+A crash offer stands for eight seconds rather than four. It is the one offer that cannot be
+reconstructed from nothing if you miss it.
 
-### Shake the phone to report a bug
+The chip is drawn in its own window rather than placed in the layout, so it lands in the same
+corner in every app regardless of how that app is built, and it cannot swallow a tap meant for
+what is underneath it.
 
-Shake twice — there and back, twice — and a sheet comes up. Pick what happened from five chips
-and add a note in your own words. The note is optional but it is the part that carries anything,
-and what you type becomes the title of the issue. The report brings the screen you were on, app
-and firmware versions, free space, heap, and the stack trace if the app died last run.
+Issue titles now follow the same convention as every other app — `LightFastread v1.5.x — <headline>`,
+labelled `fastread` — instead of the `fastread: <headline>` this app had invented.
 
-Reports queue on disk before anything is sent, so a report survives the crash that prompted it.
+### Reporting is a library now
+
+The eight files under `com.lightfastread.report` are gone. They are
+`com.gios:light-common:1.0.1`, resolved from GitHub Packages and shared with every other app that
+was keeping its own copy of the same code.
+
+Nothing about this is visible on the phone. It matters because a fix to the reporter used to mean
+editing it in ten places and getting eight of them subtly wrong — which is exactly how the
+sheet-instead-of-chip mistake reached ten apps before anyone saw it once.
+
+One thing had to change shape. `BuildConfig` does not cross a library boundary, so the app hands
+its name, its triage label and its report key to `LightReport.install()` at startup rather than the
+reporter reading them out of the build. Skip that call and reporting is simply inert, which is a
+better failure than a reporter filing issues with a blank app name.
+
+Same note field, same queue-to-disk-first behaviour, same gesture tuning.

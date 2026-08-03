@@ -11,7 +11,7 @@ plugins {
 // Single source of truth for the version. The CI workflow greps
 // `baseVersionName` out of this file to name the APK artifacts, so keep it as a
 // plain string literal.
-val baseVersionName = "1.4.0-light.1"
+val baseVersionName = "1.5.0-light.1"
 val ciRunNumber: Int? = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -114,6 +114,10 @@ android {
 }
 
 dependencies {
+    // Shake-to-report, and the shared hardware/type helpers. Was a vendored copy of the
+    // same code under com.lightfastread.report until this version.
+    implementation("com.gios:light-common:1.0.1")
+
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
