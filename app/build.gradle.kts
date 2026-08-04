@@ -116,7 +116,7 @@ android {
 dependencies {
     // Shake-to-report, and the shared hardware/type helpers. Was a vendored copy of the
     // same code under com.lightfastread.report until this version.
-    implementation("com.gios:light-common:1.0.1")
+    implementation("com.gios:light-common:1.1.0")
 
 
     implementation(libs.androidx.core.ktx)

@@ -42,3 +42,18 @@ reporter reading them out of the build. Skip that call and reporting is simply i
 better failure than a reporter filing issues with a blank app name.
 
 Same note field, same queue-to-disk-first behaviour, same gesture tuning.
+
+### The wheel is a library now
+
+`LightKeys.kt` and `Wheel.kt` are gone from this app. They are `com.gios:light-common:1.1.0`,
+the same code every other Light app was keeping its own copy of — the shared core was already
+identical everywhere, so this deletes duplication rather than changing behaviour.
+
+The library version is a genuine superset: pressed turns, `WheelTurns`, `reverse` on
+`WheelScroll` and `WheelGate` were all in one app or another and missing from the library until
+now. Anything this app's copy could do, the shared one can.
+
+One deliberate difference. `WheelSteps` in the library banks notches and rate-limits them, and
+the reader does its own banking on top (`NOTCHES_PER_PAGE`). Taking the library defaults would
+bank twice and a page turn would cost twice the wheel it used to, so the reader asks for one step
+per notch and no rate limit.

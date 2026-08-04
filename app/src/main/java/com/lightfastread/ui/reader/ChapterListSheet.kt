@@ -18,7 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lightfastread.data.Chapter
-import com.lightfastread.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 
 @Composable
 fun ChapterListSheet(

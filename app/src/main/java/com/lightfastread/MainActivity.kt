@@ -16,10 +16,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lightfastread.data.SettingsRepository
 import com.lightfastread.data.ThemeMode
-import com.lightfastread.hw.LightKey
-import com.lightfastread.hw.LightKeys
-import com.lightfastread.hw.LocalWheelBus
-import com.lightfastread.hw.WheelBus
+import com.gios.light.common.hw.LightKey
+import com.gios.light.common.hw.LightKeys
+import com.gios.light.common.hw.LocalWheelBus
+import com.gios.light.common.hw.WheelBus
 import com.lightfastread.ui.home.HomeScreen
 import com.lightfastread.ui.reader.ReaderScreen
 import com.lightfastread.ui.settings.SettingsScreen

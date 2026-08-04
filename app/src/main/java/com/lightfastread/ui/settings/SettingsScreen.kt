@@ -28,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lightfastread.data.BionicMode
-import com.lightfastread.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import com.lightfastread.data.FontFace
 import com.lightfastread.data.Fonts
 import com.lightfastread.data.SettingsRepository

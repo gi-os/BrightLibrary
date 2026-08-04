@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.data.TitleStyle
-import com.lightfastread.hw.WheelInDialog
-import com.lightfastread.hw.WheelSteps
+import com.gios.light.common.hw.WheelInDialog
+import com.gios.light.common.hw.WheelSteps
 import com.lightfastread.ui.theme.LocalIsLightPhone
 import com.lightfastread.ui.theme.LpContrast
 import kotlinx.coroutines.CancellationException
@@ -204,7 +204,10 @@ fun EreaderScreen(
         var wheelTarget by remember { mutableStateOf<Int?>(null) }
         var notchesTowardTurn by remember { mutableIntStateOf(0) }
         var lastNotchAtMs by remember { mutableLongStateOf(0L) }
-        WheelSteps { step ->
+        // One step per notch, and no rate limit: this screen does its own banking just below
+        // (NOTCHES_PER_PAGE), and light-common's WheelSteps banks by default. Taking the
+        // defaults would bank twice and a page turn would cost twice the wheel it used to.
+        WheelSteps(notchesPerStep = 1, minIntervalMs = 0) { step ->
             if (pages.isNotEmpty()) {
                 val now = System.currentTimeMillis()
                 // Reversing, or picking the wheel up again after a pause, starts

@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.lightfastread.hw.WheelInDialog
+import com.gios.light.common.hw.WheelInDialog
 import com.lightfastread.ui.theme.LocalIsLightPhone
 import com.lightfastread.ui.theme.lpBorder
 import kotlinx.coroutines.launch
