@@ -112,9 +112,41 @@ class BookRepository private constructor(private val appContext: Context) {
         books[idx] = books[idx].copy(
             coverFileName = stored,
             coverUpdatedAtMs = System.currentTimeMillis(),
+            coverSearchedAtMs = System.currentTimeMillis(),
         )
         persist()
         return true
+    }
+
+    /** Record that a cover was looked for and not found, so the sweep can back off. */
+    fun markCoverSearched(id: String) {
+        val idx = books.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        books[idx] = books[idx].copy(coverSearchedAtMs = System.currentTimeMillis())
+        persist()
+    }
+
+    /**
+     * Correct a book's title and author.
+     *
+     * Ebook metadata is frequently wrong or absent — a filename where a title should be, an author
+     * field holding a publisher — and everything downstream of it is downstream of that: what the
+     * shelf reads, and what a cover search has to work with. Editing it is the fix for both, which
+     * is why [com.lightfastread.ui.home.RenameBook] searches again straight afterwards.
+     *
+     * `coverSearchedAtMs` is cleared deliberately: a new name is a new question, so the sweep's
+     * back-off must not suppress it.
+     */
+    fun rename(id: String, title: String, author: String) {
+        val idx = books.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        val cleanTitle = title.trim().ifBlank { books[idx].title }
+        books[idx] = books[idx].copy(
+            title = cleanTitle,
+            author = author.trim(),
+            coverSearchedAtMs = 0L,
+        )
+        persist()
     }
 
     fun getBook(id: String): Book? = books.firstOrNull { it.id == id }

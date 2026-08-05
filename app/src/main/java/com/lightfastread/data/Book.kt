@@ -32,4 +32,14 @@ data class Book(
      * makes a re-fetch visible.
      */
     val coverUpdatedAtMs: Long = 0L,
+    /**
+     * When a cover was last *looked for*, successfully or not.
+     *
+     * Without this a lookup that failed — no signal at import, a title the catalogue doesn't know —
+     * never happened again, because the only thing that triggered one was the import itself. The
+     * shelf now sweeps for books that have no cover and haven't been asked about recently, and this
+     * is what keeps that sweep from asking Open Library the same unanswerable question every time
+     * the shelf is opened.
+     */
+    val coverSearchedAtMs: Long = 0L,
 )

@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,6 +84,7 @@ fun HomeScreen(
     var importing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var actionsFor by remember { mutableStateOf<Book?>(null) }
+    var renaming by remember { mutableStateOf<Book?>(null) }
     val scope = rememberCoroutineScope()
     val gridState = rememberLazyGridState()
     WheelScroll(gridState)
@@ -96,6 +98,10 @@ fun HomeScreen(
      *
      * Fired after the import finishes rather than during it, so a book is on the shelf the moment
      * its text is parsed instead of waiting on a network round trip that may never come back.
+     *
+     * Either outcome is recorded. A search that found nothing used to leave no trace at all, so the
+     * book sat there coverless and nothing ever asked again — see [Book.coverSearchedAtMs] and the
+     * sweep below.
      */
     val fetchCover: (Book) -> Unit = { book ->
         scope.launch {
@@ -104,9 +110,46 @@ fun HomeScreen(
             }
             if (bytes != null) {
                 withContext(Dispatchers.IO) { repo.setCover(book.id, bytes) }
+                status = null
             } else {
-                status = "No cover found for \"${book.title}\""
+                repo.markCoverSearched(book.id)
+                status = "No cover found for “${book.title}” — long-press it to fix the name"
             }
+        }
+    }
+
+    /**
+     * Look again for the covers that are still missing.
+     *
+     * The only thing that used to trigger a lookup was the import itself, in a coroutine tied to
+     * this screen — so a book imported with no signal, or one whose shelf was left before the
+     * request came back, never got a second chance. That is the whole of "the covers sometimes
+     * never search".
+     *
+     * Runs whenever the shelf appears, one book at a time so a library of thirty does not open
+     * thirty sockets, and skips anything asked about within [COVER_RETRY_MS]. Cancellation is
+     * fine and expected: opening a book stops the sweep, and returning to the shelf resumes it.
+     */
+    LaunchedEffect(Unit) {
+        val cutoff = System.currentTimeMillis() - COVER_RETRY_MS
+        val pending = books.filter { it.coverFileName == null && it.coverSearchedAtMs < cutoff }
+        if (pending.isEmpty()) return@LaunchedEffect
+        status = if (pending.size == 1) "Looking for a cover…" else "Looking for ${pending.size} covers…"
+        var found = 0
+        for (book in pending) {
+            val bytes = withContext(Dispatchers.IO) {
+                Covers.fetchFromOpenLibrary(book.title, book.author)
+            }
+            if (bytes != null && withContext(Dispatchers.IO) { repo.setCover(book.id, bytes) }) {
+                found++
+            } else {
+                repo.markCoverSearched(book.id)
+            }
+        }
+        status = when {
+            found == pending.size -> null
+            found > 0 -> "Found $found of ${pending.size}. Long-press a book to fix its name."
+            else -> "No covers found. Long-press a book to fix its name and search again."
         }
     }
 
@@ -239,6 +282,10 @@ fun HomeScreen(
                 status = "Looking for a cover…"
                 fetchCover(book)
             },
+            onRename = {
+                actionsFor = null
+                renaming = book
+            },
             onDelete = {
                 actionsFor = null
                 repo.deleteBook(book)
@@ -246,7 +293,32 @@ fun HomeScreen(
             onDismiss = { actionsFor = null },
         )
     }
+
+    renaming?.let { book ->
+        RenameBook(
+            book = book,
+            onSave = { title, author ->
+                renaming = null
+                repo.rename(book.id, title, author)
+                // Search with what was typed rather than with `book`, which is the pre-edit copy —
+                // a data class captured before the rename would send the old title straight back to
+                // the catalogue and look like the fix had done nothing.
+                status = "Looking for a cover…"
+                fetchCover(book.copy(title = title.trim(), author = author.trim()))
+            },
+            onDismiss = { renaming = null },
+        )
+    }
 }
+
+/**
+ * How long a failed cover search is left alone.
+ *
+ * Long enough that opening the shelf repeatedly does not hammer Open Library with a question it has
+ * already declined to answer, short enough that a book imported on a train has its cover by the
+ * next day. A rename clears the timestamp outright, since a new name is a new question.
+ */
+private const val COVER_RETRY_MS = 12L * 60 * 60 * 1000
 
 /** Two to a row, as asked. Anything more and the art stops being worth showing. */
 private const val COLUMNS = 2

@@ -1,3 +1,42 @@
+## LightBooks v1.6 — Covers that actually get looked for, and a name you can fix
+
+**Two fixes to the same problem: a cover search that gave up quietly, and no way to tell it what the
+book is called.**
+
+### The searching
+
+A cover lookup only ever happened once, during the import, in a coroutine belonging to the shelf. So
+if you imported a book with no signal, or left the shelf before the request came back, that was the
+only attempt the book ever got — and a search that came back empty left no trace, so nothing knew to
+try again. That is the whole of "the covers sometimes never search".
+
+Now the shelf sweeps for books that still have no cover every time it opens, one at a time, skipping
+anything it asked about in the last 12 hours. Every attempt is recorded whether it succeeds or not,
+which is what makes the back-off possible. Books already on your shelf without covers get picked up
+on the first open after this update.
+
+The search itself was also too literal. Open Library's `title=` is matched closely, and ebook
+metadata is not catalogue metadata: titles arrive as `dune_messiah.epub`, or with `(Z-Library)` glued
+on, or carrying a marketing subtitle; authors arrive as `Herbert, Frank` or as three names separated
+by semicolons. Any of those returns an empty result, which reads exactly like a search that never
+ran. So the query is cleaned first — filename underscores, bracketed suffixes, surname-first authors,
+contributor lists — and then widened rather than abandoned: full title with author, title without its
+subtitle, title alone, and finally a fuzzy search. A failed request is no longer the end of the
+whole lookup either, and if a cover has no large size uploaded it falls back to the medium one.
+
+### Fix the name
+
+Long-press a book: **FIX NAME**, under FIND COVER because it is what to try when that keeps failing.
+Correct the title and the author, and saving searches again immediately with what you typed. The
+title comes up selected, since the usual edit is replacing the whole thing.
+
+That also fixes the shelf caption for anything that imported with a filename where a title should be.
+
+Text entry needs a keyboard: LightOS's own is an in-app component rather than a system input method,
+so this is a field LightKeyboard fills.
+
+---
+
 ## LightBooks v1.5 — It's a bookshelf now
 
 **The app is renamed, rebuilt on the real Light Phone SDK design language, and reorganised around

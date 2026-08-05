@@ -38,6 +38,7 @@ import com.lightfastread.ui.light.lightInset
 fun BookActions(
     book: Book,
     onFindCover: () -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -74,6 +75,9 @@ fun BookActions(
                 ActionRow(text = "KEEP IT", onClick = { confirmingDelete = false })
             } else {
                 ActionRow(text = "FIND COVER", onClick = onFindCover)
+                // Directly under FIND COVER, because it is the thing to try when that keeps
+                // failing: a lookup is only as good as the title it is given.
+                ActionRow(text = "FIX NAME", onClick = onRename)
                 ActionRow(text = "DELETE", onClick = { confirmingDelete = true })
                 ActionRow(text = "CANCEL", lighten = true, onClick = onDismiss)
             }

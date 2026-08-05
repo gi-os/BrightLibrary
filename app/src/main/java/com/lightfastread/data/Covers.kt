@@ -36,6 +36,13 @@ object Covers {
     private const val COVER_URL = "https://covers.openlibrary.org/b/id"
     private const val TIMEOUT_MS = 12_000
 
+    /**
+     * Records per search. More than one because the top hit for a fuzzy `q=` search is often an
+     * edition with no cover uploaded, while the second or third has one; `fields=cover_i` keeps
+     * five records to about a hundred bytes.
+     */
+    private const val SEARCH_LIMIT = 5
+
     fun dir(context: Context): File = File(context.filesDir, "covers").apply { mkdirs() }
 
     fun fileFor(context: Context, book: Book): File? =
@@ -88,23 +95,107 @@ object Covers {
      * state, and an import must not fail because a lookup did.
      */
     fun fetchFromOpenLibrary(title: String, author: String): ByteArray? {
-        if (title.isBlank()) return null
-        return try {
-            val query = buildString {
-                append("title=").append(enc(title))
-                if (author.isNotBlank()) append("&author=").append(enc(author))
+        val queries = searchQueries(title, author)
+        if (queries.isEmpty()) return null
+        for (query in queries) {
+            val id = try {
+                val body = get("$SEARCH_URL?$query&fields=cover_i&limit=$SEARCH_LIMIT")
+                    ?.toString(Charsets.UTF_8) ?: continue
+                // Deliberately not a JSON parse: the response is `{"...":[{"cover_i":123}]}` and one
+                // regex is cheaper than pulling the serializer in for a single integer. The first
+                // match wins, and records with no cover simply omit the field, so scanning for it
+                // skips them without having to walk the array.
+                Regex("\"cover_i\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1) ?: continue
+            } catch (e: Exception) {
+                // One bad query is not a failed lookup. A DNS hiccup on the first attempt used to
+                // end the whole search, which is a large part of why covers "sometimes never
+                // searched" — nothing retried and nothing said why.
+                Log.w(TAG, "query failed ($query): ${e.message}")
+                continue
             }
-            val body = get("$SEARCH_URL?$query&fields=cover_i&limit=1")?.toString(Charsets.UTF_8)
-                ?: return null
-            // Deliberately not a JSON parse: the response is `{"...":[{"cover_i":123}]}` and one
-            // regex is cheaper than pulling the serializer in for a single integer.
-            val id = Regex("\"cover_i\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1)
-                ?: return null
-            get("$COVER_URL/$id-L.jpg")?.takeIf { looksLikeImage(it) }
-        } catch (e: Exception) {
-            Log.w(TAG, "Open Library lookup failed for \"$title\": ${e.message}")
-            null
+            // -L is about 500px, which is what the shelf wants, but not every cover has been
+            // uploaded at that size — a missing size 404s rather than scaling down, so fall back.
+            for (size in listOf('L', 'M')) {
+                val bytes = try {
+                    get("$COVER_URL/$id-$size.jpg")
+                } catch (e: Exception) {
+                    null
+                }
+                if (bytes != null && looksLikeImage(bytes)) return bytes
+            }
         }
+        Log.w(TAG, "no cover on Open Library for \"$title\" / \"$author\"")
+        return null
+    }
+
+    /**
+     * The queries to try, in order, for one book.
+     *
+     * Ebook metadata is not catalogue metadata. A title arrives as `The Body Keeps The Score:
+     * Brain, Mind, and Body...`, or as `dune_messiah` from a filename, or with `(Z-Library)` glued
+     * on the end; an author arrives as `Herbert, Frank` or as three names separated by semicolons.
+     * Open Library's `title=` field is matched closely enough that any of those returns nothing,
+     * and a single failed exact query is exactly what "the cover never searched" looks like from
+     * the outside.
+     *
+     * So the search widens instead of giving up: full title with author, then the part of the title
+     * before its subtitle, then the title alone, and finally a general `q=` search which is fuzzy
+     * enough to survive most of the rest. Internal so a unit test can pin the order.
+     */
+    internal fun searchQueries(title: String, author: String): List<String> {
+        val cleanTitle = normaliseTitle(title)
+        if (cleanTitle.isBlank()) return emptyList()
+        val shortTitle = cleanTitle.substringBefore(':').trim()
+        val cleanAuthor = normaliseAuthor(author)
+
+        val attempts = ArrayList<String>(4)
+        fun add(query: String) {
+            if (query !in attempts) attempts.add(query)
+        }
+        if (cleanAuthor.isNotBlank()) {
+            add("title=${enc(cleanTitle)}&author=${enc(cleanAuthor)}")
+            add("title=${enc(shortTitle)}&author=${enc(cleanAuthor)}")
+        }
+        add("title=${enc(shortTitle)}")
+        add("q=${enc(listOf(shortTitle, cleanAuthor).filter { it.isNotBlank() }.joinToString(" "))}")
+        return attempts
+    }
+
+    /**
+     * A title the catalogue has a chance of recognising.
+     *
+     * Underscores and runs of hyphens come from filenames; bracketed suffixes are almost always a
+     * format, an edition, a library watermark or a duplicate marker, never part of the title.
+     */
+    internal fun normaliseTitle(raw: String): String =
+        raw.replace('_', ' ')
+            .replace(Regex("""\s*[\(\[\{][^)\]}]*[\)\]\}]"""), " ")
+            .replace(Regex("""\.(epub|mobi|azw3?|txt|pdf)$""", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("""\s+-\s*copy$""", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("""[\-–—]{2,}"""), " ")
+            .replace(Regex("""["“”']"""), "")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .trim('-', '.', ',', ' ')
+
+    /**
+     * One author, in reading order.
+     *
+     * `Herbert, Frank` has to become `Frank Herbert` or the field match fails, and a list of
+     * contributors has to become its first entry — Open Library's `author=` is a single-value
+     * match, so handing it `Gaiman, Neil; Pratchett, Terry` finds nothing at all. The comma flip
+     * is skipped when there is more than one comma, since that is a list rather than a surname.
+     */
+    internal fun normaliseAuthor(raw: String): String {
+        val first = raw.split(';', '&', '/')
+            .firstOrNull { it.isNotBlank() }
+            ?.replace(Regex("""\band\b""", RegexOption.IGNORE_CASE), " ")
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            .orEmpty()
+        if (first.count { it == ',' } != 1) return first.trim(',', ' ')
+        val (last, given) = first.split(',', limit = 2).map { it.trim() }
+        return if (given.isBlank()) last else "$given $last"
     }
 
     /** Cheap magic-number check, so an HTML error page never gets stored as a cover. */

@@ -16,7 +16,7 @@ rename updates in place — no reinstall, no lost books, and an existing Obtaini
 working without being re-added. Every source package is still `com.lightfastread` too; the
 namespace is load-bearing for the R class and the provider authorities.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.5.0-light.1`.
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.6.0-light.1`.
 CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
 see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
@@ -24,7 +24,10 @@ see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](REL
 
 - **A shelf, not a list.** Two covers to a row, progress as a hairline under each. Cover
   art is read out of the EPUB or MOBI itself, then looked up on Open Library, and failing
-  both the book gets a typographic cover. Long-press for FIND COVER or DELETE.
+  both the book gets a typographic cover. The shelf re-sweeps for missing covers on every
+  open (backing off 12 hours per book), and the lookup cleans and widens its query rather
+  than trusting ebook metadata to match a catalogue. Long-press for FIND COVER, FIX NAME
+  or DELETE — a corrected title and author searches again straight away.
 - **Covers in colour.** The shelf lifts LightOS's forced greyscale (the daltonizer, not a
   hardware limit) for as long as it is on screen, and drops it when you open a book. Needs
   a one-time `adb shell pm grant com.lightfastread android.permission.WRITE_SECURE_SETTINGS`;
@@ -73,6 +76,8 @@ see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](REL
 `git log` from `c7d1a4f` onward is this fork; the repo's `Initial commit` is the
 upstream import point.
 
+- v1.6 — Sweep for missing covers instead of searching once, widen the query, and let a
+  book's title and author be corrected (FIX NAME)
 - v1.5 — Rename to LightBooks, port the Light SDK design language, shelf of covers,
   covers in colour, and a book that opens to its pages (see [RELEASE_NOTES.md](RELEASE_NOTES.md))
 - `d377fb3` — CI: actually check working branches
