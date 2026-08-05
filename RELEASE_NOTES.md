@@ -5,10 +5,11 @@ reading pages. FastRead is still here; it is a button rather than the whole app.
 
 ### Renamed to LightBooks
 
-The launcher says **Books** and the repo, the release artifacts and the issue titles say
-**LightBooks**. Nothing about the install changes: `applicationId` is still `com.lightfastread` and
-the signing key is the same one, so this updates in place over your existing build with your books
-and your place in them intact. There is no uninstall step and no new Obtainium entry.
+The launcher says **Books**, the release titles say **LightBooks**, and shake-to-report signs its
+issues LightBooks. Deliberately nothing else: the repo is still `gi-os/LightFastread`, the published
+APK is still `LightFastread-<version>.apk`, `applicationId` is still `com.lightfastread`, and the
+signing key is unchanged. So this updates in place over your existing build with your books and your
+place in them intact — no uninstall, and your Obtainium source keeps working exactly as it is.
 
 The name had stopped being accurate. Fast reading is one mode of an ebook reader now, not the point
 of the app.

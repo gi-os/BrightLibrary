@@ -117,15 +117,21 @@ jobs:
           # Exactly one APK ships. Publishing a debug build alongside it meant
           # Obtainium could pick either, and the debug one is signed with a
           # throwaway key the runner regenerates on every job.
-          cp app/build/outputs/apk/release/app-release.apk "out/LightBooks-${VER}.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "debug-LightBooks-${VER}.apk"
+          #
+          # The file is still named LightFastread even though the app is LightBooks,
+          # and the repo is still gi-os/LightFastread. Both on purpose: an installed
+          # Obtainium source is pinned to the repo URL and may carry an APK filter
+          # matching this filename, and neither is worth breaking on a device that
+          # already works. The release *title* below is where the new name shows.
+          cp app/build/outputs/apk/release/app-release.apk "out/LightFastread-${VER}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "debug-LightFastread-${VER}.apk"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           ls -la out
 
       - name: Upload debug APK as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: debug-LightBooks-${{ steps.collect.outputs.version }}
+          name: debug-LightFastread-${{ steps.collect.outputs.version }}
           path: debug-*.apk
           if-no-files-found: error
 
@@ -143,7 +149,7 @@ jobs:
             Automatic build of `${{ github.sha }}`.
 
             ```
-            adb install -r LightBooks-${{ steps.collect.outputs.version }}.apk
+            adb install -r LightFastread-${{ steps.collect.outputs.version }}.apk
             ```
 
             `versionCode` is the workflow run number (`${{ github.run_number }}`) and
@@ -151,7 +157,7 @@ jobs:
             `adb`, or via Obtainium.
 
             Signing certificate SHA-256 is pinned in
-            [`signing-fingerprint.txt`](https://github.com/gi-os/LightBooks/blob/main/signing-fingerprint.txt);
+            [`signing-fingerprint.txt`](https://github.com/gi-os/LightFastread/blob/main/signing-fingerprint.txt);
             CI fails if it ever changes.
 
       # Tagged releases are the hand-cut, human-notes ones.

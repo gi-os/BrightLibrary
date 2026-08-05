@@ -8,11 +8,13 @@ fork adds is the phone: a port of the real Light SDK design language, a cover sh
 a hardware wheel, and a package identity that installs alongside any upstream FastRead
 build without colliding.
 
-**Named LightBooks since v1.5.** The launcher says "Books" and the release artifacts say
-`LightBooks`, but `applicationId` is still **`com.lightfastread`** and the signing key is
-unchanged, so the rename updates in place rather than forcing a reinstall. Every source
-package is still `com.lightfastread` too — the namespace is load-bearing for the R class
-and provider authorities and there is nothing to gain by churning it.
+**Named LightBooks since v1.5, on the surface only.** The launcher says "Books" and the
+release titles say LightBooks. Everything an installed phone depends on is untouched:
+`applicationId` is still `com.lightfastread`, the signing key is the same, the repo is still
+**`gi-os/LightFastread`**, and the published APK is still `LightFastread-<version>.apk`. So the
+rename updates in place — no reinstall, no lost books, and an existing Obtainium source keeps
+working without being re-added. Every source package is still `com.lightfastread` too; the
+namespace is load-bearing for the R class and the provider authorities.
 
 **Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.5.0-light.1`.
 CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
@@ -213,7 +215,7 @@ a plain sideloaded APK, not an SDK tool, so for now:
 
 ```bash
 # Every push to main publishes a signed build to Releases:
-adb install -r LightBooks-<version>.apk
+adb install -r LightFastread-<version>.apk
 ```
 
 Each release carries exactly one APK, signed with a stable key. Nothing needs
@@ -221,7 +223,7 @@ uninstalling first; the package ID is unique to this fork.
 
 ### Obtainium
 
-Add `https://github.com/gi-os/LightBooks` as a GitHub source. There is one `.apk` per
+Add `https://github.com/gi-os/LightFastread` as a GitHub source. There is one `.apk` per
 release, so there's nothing to disambiguate, and every build is signed with the same key —
 updates apply in place.
 
@@ -393,8 +395,8 @@ Requirements:
 Steps:
 
 ```bash
-git clone https://github.com/gi-os/LightBooks.git
-cd LightBooks
+git clone https://github.com/gi-os/LightFastread.git
+cd LightFastread
 ./gradlew assembleDebug
 # APK lands in app/build/outputs/apk/debug/
 ```
@@ -520,7 +522,7 @@ Twelve tools for the Light Phone III, all open source, all built in one run.
 | [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
 | [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
-| **LightBooks** (this repo) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| **LightBooks** (this repo, `gi-os/LightFastread`) | Ebook reader: cover shelf, page view, RSVP | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
 | [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
 | [LightNoise](https://github.com/gi-os/LightNoise) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
 | [LightPods](https://github.com/gi-os/LightPods) | AirPods battery, in-ear and lid status | Plain Android, ports [LibrePods](https://github.com/kavishdevar/librepods) |
