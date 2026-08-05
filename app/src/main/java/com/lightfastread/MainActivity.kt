@@ -21,6 +21,7 @@ import com.lightfastread.hw.LightKeys
 import com.lightfastread.hw.LocalWheelBus
 import com.lightfastread.hw.WheelBus
 import com.lightfastread.ui.home.HomeScreen
+import com.lightfastread.ui.light.ColorMode
 import com.lightfastread.ui.reader.ReaderScreen
 import com.lightfastread.ui.settings.SettingsScreen
 import com.lightfastread.ui.theme.FastReadTheme
@@ -50,6 +51,24 @@ class MainActivity : ComponentActivity() {
             else -> Unit
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /**
+     * The phone must not be left in colour when the app is not on screen.
+     *
+     * The daltonizer is a *display-wide* secure setting, so the shelf lifting it colours the whole
+     * of LightOS. Dropping it in `onStop` and re-lifting in `onStart` keeps that bounded to the
+     * moments the covers are actually visible; without it, backing out of the app would leave the
+     * user's phone in colour until they came back.
+     */
+    override fun onStart() {
+        super.onStart()
+        ColorMode.onAppVisible(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        ColorMode.onAppHidden(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -20,4 +20,16 @@ data class Book(
     val addedAtMs: Long = System.currentTimeMillis(),
     val chapters: List<Chapter> = emptyList(),
     val bookmarks: List<Int> = emptyList(),
+    /**
+     * File name of the stored cover inside `filesDir/covers`, or null when the book has none and
+     * the shelf should draw a typographic cover for it. See [Covers].
+     */
+    val coverFileName: String? = null,
+    /**
+     * When the cover was last written. The file name is derived from the book id and so never
+     * changes, which means a replacement cover would leave the [Book] equal to its old self —
+     * no recomposition, and a decoded bitmap keyed on the name would stay stale. This is what
+     * makes a re-fetch visible.
+     */
+    val coverUpdatedAtMs: Long = 0L,
 )

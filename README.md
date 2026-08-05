@@ -1,26 +1,42 @@
-## Gio's LPIII fork — status as of 2026-07-30
+## Gio's LPIII fork — status as of 2026-08-05
 
 This repo forks the FastRead RSVP reader for one piece of hardware: the Light Phone
 III's 3.92", 1080×1240 black-and-white OLED (see [Credits](#credits) for the exact
 upstream lineage — it's more tangled than a single fork arrow). Upstream's reading
-engine, both ebook parsers and the whole gesture model are untouched here. Everything
-this fork adds is presentation: a true-black theme, a hardware wheel, and a package
-identity that installs alongside any upstream FastRead build without colliding.
+engine, both ebook parsers and the whole gesture model are untouched here. What this
+fork adds is the phone: a port of the real Light SDK design language, a cover shelf,
+a hardware wheel, and a package identity that installs alongside any upstream FastRead
+build without colliding.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.2.0-light.1`,
-bumped for the full-page ereader mode below. CI stamps `versionCode` and appends
-`-bN` to `baseVersionName` on every push to `main` — see [Building](#building) below.
+**Named LightBooks since v1.5.** The launcher says "Books" and the release artifacts say
+`LightBooks`, but `applicationId` is still **`com.lightfastread`** and the signing key is
+unchanged, so the rename updates in place rather than forcing a reinstall. Every source
+package is still `com.lightfastread` too — the namespace is load-bearing for the R class
+and provider authorities and there is nothing to gain by churning it.
+
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.5.0-light.1`.
+CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
+see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ### What's working today
 
-- Tap the reader's three-line context preview (instead of holding it) to open a
-  full-page ereader: swipe or turn the wheel to move between pages, with an
-  iOS 6-style 3D flip, landing back in RSVP mode wherever you stopped.
-- Every upstream screen — library, reader, Settings, the in-reader quick-settings
-  sheet — runs unmodified, repainted for true black.
-- The hardware wheel (`hw/LightKeys.kt` + `hw/Wheel.kt`) scrolls the library,
-  Settings, the chapter list, the bookmark list and the quick-settings sheet,
-  including inside `Dialog` sheets, which don't receive key events for free
+- **A shelf, not a list.** Two covers to a row, progress as a hairline under each. Cover
+  art is read out of the EPUB or MOBI itself, then looked up on Open Library, and failing
+  both the book gets a typographic cover. Long-press for FIND COVER or DELETE.
+- **Covers in colour.** The shelf lifts LightOS's forced greyscale (the daltonizer, not a
+  hardware limit) for as long as it is on screen, and drops it when you open a book. Needs
+  a one-time `adb shell pm grant com.lightfastread android.permission.WRITE_SECURE_SETTINGS`;
+  without it covers stay grey and nothing breaks. Toggle in Settings.
+- **A book opens to its pages.** The full-page view is the book's home screen; tap the
+  screen and a bar appears for four seconds with back on the left and FASTREAD on the right.
+  Back out of the word reader returns to the pages.
+- **The LightOS design language, ported for real** (`ui/light/`, from `lightphone/light-sdk`,
+  MIT — see [LICENSE-light-sdk](LICENSE-light-sdk)): the 27 x 31 grid, the named type scale
+  over a 600px baseline, the SDK icon set, top and bottom bars, no ripples, and selection
+  shown by `[ brackets ]` rather than by a change of shade.
+- The hardware wheel (`hw/LightKeys.kt` + `hw/Wheel.kt`) scrolls the shelf, Settings, the
+  chapter list, the bookmark list and the quick-settings sheet, and turns pages in the page
+  view — including inside `Dialog` sheets, which don't receive key events for free
   (`WheelInDialog()` borrows the sheet window's own callback).
 - Package identity (`com.lightfastread`, both `namespace` and `applicationId`) is
   fully separated from upstream FastRead, so this build and an upstream build
@@ -55,6 +71,9 @@ bumped for the full-page ereader mode below. CI stamps `versionCode` and appends
 `git log` from `c7d1a4f` onward is this fork; the repo's `Initial commit` is the
 upstream import point.
 
+- v1.5 — Rename to LightBooks, port the Light SDK design language, shelf of covers,
+  covers in colour, and a book that opens to its pages (see [RELEASE_NOTES.md](RELEASE_NOTES.md))
+- `d377fb3` — CI: actually check working branches
 - `2f38b86` — Add a full-page ereader mode, opened by tapping the context preview
 - `440482b` — Say in the README what the wheel needs
 - `09fc696` — Scroll with the wheel
@@ -83,9 +102,9 @@ provision a second JDK over the network on every run.
 
 ---
 
-# LightFastread
+# LightBooks
 
-**A fork of [FastRead](https://github.com/fluffyspace/FastRead) retuned for the Light Phone III's black-and-white OLED.**
+**An ebook reader for the Light Phone III, forked from [FastRead](https://github.com/fluffyspace/FastRead).**
 
 Everything upstream does, on a screen where every lit pixel is a choice: pure `#000000` on
 every surface, a greyscale palette, and layout that assumes a 3.92" near-square panel
@@ -99,6 +118,8 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 
 | Change | Why |
 | ------ | --- |
+| **The Light SDK design language, ported into `ui/light/`** | v1.5. A black Material 3 palette still lays out like Material: fixed dp, a floating action button, ripples, tonal elevation. LightOS lays out on a 27 x 31 grid with a named type scale and no ripples at all, and `lightphone/light-sdk` is MIT, so the real thing can be ported rather than approximated. Material stays underneath only so the surviving sliders and the sheet windows inherit the palette. |
+| **The library is a shelf of covers, two to a row** | v1.5. A one-line-per-book list is what a file manager shows you. Cover art is how anyone actually finds a book, and it is the one thing on this phone worth turning the colour back on for. |
 | New **Light Phone** theme mode, default on first run | Kept separate from `Dark` rather than replacing it, so this fork stays rebaseable on upstream. |
 | Every `surface*` role is `#000000`, `surfaceTint` is black | Material 3's dark scheme uses `#1C1B1F`-ish greys plus tonal elevation overlays. On an OLED that's a lit grey slab where there should be nothing. Black `surfaceTint` makes `surfaceColorAtElevation` resolve to black at every elevation. |
 | Hairline outlines replace tonal elevation | Once tonal lift is gone, book rows, the top bar, the chapter strip and the bottom sheet are black-on-black with no visible boundary. They get 1dp `outline` edges instead — one row of dim grey rather than a whole grey rectangle. |
@@ -107,7 +128,7 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 | Zone guides are off by default and toggleable | Upstream draws the gesture boundaries permanently. On a pure-black screen that grid competes with the text instead of receding behind it, and it's only genuinely useful while you're still learning where the zones are. |
 | `surfaceVariant` and the dialog containers stay faintly grey | These back Material's *tracks* (progress bar, slider rails, switch tracks) and its *ephemeral* containers (AlertDialog, menus). Pure black would erase the tracks entirely, and a scrim over an already-black background tints nothing — a black dialog on a black screen is unanchored text. |
 | Black `windowBackground` in `themes.xml` | The launch theme is what Android paints during cold start, before Compose draws. The stock `Material.Light` parent flashed white — a full-brightness strobe on every launch. |
-| Book list padded past the FAB; bottom sheets allowed to go taller | The LPIII is roughly **411 × 472 dp** — normal width, about half the usual height. Anything sized as a fraction of screen height needed a second look. `Scaffold` reserves no space for the FAB, so the last book row sat permanently under "Add book". |
+| ~~Book list padded past the FAB~~; bottom sheets allowed to go taller | The LPIII is roughly **411 × 472 dp** — normal width, about half the usual height. Anything sized as a fraction of screen height needed a second look. `Scaffold` reserves no space for the FAB, so the last book row sat permanently under "Add book". |
 | The brightness wheel scrolls every list | The LPIII has a hardware wheel and upstream has never heard of it. Lists here are the one place the touchscreen is worst — a 472dp-tall panel behind matte glass, with the whole reader surface already spoken for by hold-and-swipe gestures. |
 | `targetSdk` 34; package fully renamed to `com.lightfastread` | LightOS is Android 14, and the light-sdk emulator profile is API 34; no reason to opt into 35/36 behaviour the device will never see. Both `namespace` and `applicationId` are `com.lightfastread`, so this shares no identifier with upstream FastRead — not the package, the R class, or the permission and provider authorities AndroidX derives from them. It installs cleanly alongside any other FastRead build. |
 
@@ -192,7 +213,7 @@ a plain sideloaded APK, not an SDK tool, so for now:
 
 ```bash
 # Every push to main publishes a signed build to Releases:
-adb install -r LightFastread-<version>.apk
+adb install -r LightBooks-<version>.apk
 ```
 
 Each release carries exactly one APK, signed with a stable key. Nothing needs
@@ -200,7 +221,7 @@ uninstalling first; the package ID is unique to this fork.
 
 ### Obtainium
 
-Add `https://github.com/gi-os/LightFastread` as a GitHub source. There is one `.apk` per
+Add `https://github.com/gi-os/LightBooks` as a GitHub source. There is one `.apk` per
 release, so there's nothing to disambiguate, and every build is signed with the same key —
 updates apply in place.
 
@@ -372,8 +393,8 @@ Requirements:
 Steps:
 
 ```bash
-git clone https://github.com/gi-os/LightFastread.git
-cd LightFastread
+git clone https://github.com/gi-os/LightBooks.git
+cd LightBooks
 ./gradlew assembleDebug
 # APK lands in app/build/outputs/apk/debug/
 ```
@@ -499,7 +520,7 @@ Twelve tools for the Light Phone III, all open source, all built in one run.
 | [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
 | [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
-| **LightFastread** (this repo) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| **LightBooks** (this repo) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
 | [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
 | [LightNoise](https://github.com/gi-os/LightNoise) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
 | [LightPods](https://github.com/gi-os/LightPods) | AirPods battery, in-ear and lid status | Plain Android, ports [LibrePods](https://github.com/kavishdevar/librepods) |

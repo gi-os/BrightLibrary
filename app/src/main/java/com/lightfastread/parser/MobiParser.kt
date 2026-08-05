@@ -23,6 +23,11 @@ object MobiParser {
         var encoding = "ISO-8859-1"
         var title = fallbackTitle
         var author = ""
+        // Where the image records start, and which of them is the cover. A MOBI keeps its images
+        // as ordinary PDB records after the text, so the cover is `firstImageIndex + coverOffset`
+        // — the EXTH value is relative to the image block, not to the file.
+        var firstImageIndex = -1
+        var coverOffset = -1
 
         if (rec0.size >= 20 && rec0[16] == 'M'.code.toByte() && rec0[17] == 'O'.code.toByte()
             && rec0[18] == 'B'.code.toByte() && rec0[19] == 'I'.code.toByte()
@@ -48,6 +53,12 @@ object MobiParser {
                 }
             }
 
+            // "First Image index" lives at 0x6C in the MOBI header. Guard the read: plenty of
+            // older MOBI files stop well before it.
+            if (rec0.size >= mobiOffset + 112 && headerLen >= 112) {
+                firstImageIndex = readU32(rec0, mobiOffset + 108)
+            }
+
             val exthOffset = mobiOffset + headerLen
             if (exthOffset + 12 <= rec0.size
                 && rec0[exthOffset] == 'E'.code.toByte() && rec0[exthOffset + 1] == 'X'.code.toByte()
@@ -65,6 +76,10 @@ object MobiParser {
                         runCatching {
                             author = String(data, charset(encoding)).trim()
                         }
+                    }
+                    if (type == 201 && data.size >= 4) { // cover offset
+                        // 0xFFFFFFFF means "no cover", and arrives here as -1.
+                        coverOffset = readU32(data, 0)
                     }
                     pos += len
                 }
@@ -102,7 +117,32 @@ object MobiParser {
             format = "MOBI",
             text = text,
             chapters = chapters,
+            coverImage = coverRecord(bytes, recordOffsets, firstImageIndex, coverOffset),
         )
+    }
+
+    /**
+     * The record holding the cover image, if the file said where it is.
+     *
+     * Verified by magic number rather than trusted: a wrong `firstImageIndex` (or a file whose
+     * EXTH offset counts something else) would otherwise hand back a slab of compressed text for
+     * the shelf to try to decode.
+     */
+    private fun coverRecord(
+        bytes: ByteArray,
+        recordOffsets: IntArray,
+        firstImageIndex: Int,
+        coverOffset: Int,
+    ): ByteArray? {
+        if (firstImageIndex < 0 || coverOffset < 0) return null
+        val index = firstImageIndex + coverOffset
+        if (index <= 0 || index >= recordOffsets.size) return null
+        val record = runCatching { recordSlice(bytes, recordOffsets, index) }.getOrNull() ?: return null
+        if (record.size < 4) return null
+        val jpeg = record[0] == 0xFF.toByte() && record[1] == 0xD8.toByte()
+        val png = record[0] == 0x89.toByte() && record[1] == 'P'.code.toByte()
+        val gif = record[0] == 'G'.code.toByte() && record[1] == 'I'.code.toByte()
+        return if (jpeg || png || gif) record else null
     }
 
     private fun splitChapters(html: String): Pair<String, List<RawChapter>> {

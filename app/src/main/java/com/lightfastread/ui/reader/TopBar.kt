@@ -1,24 +1,28 @@
 package com.lightfastread.ui.reader
 
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.lightfastread.ui.theme.LocalIsLightPhone
-import com.lightfastread.ui.theme.lpBottomEdge
+import com.lightfastread.ui.light.LightBarItem
+import com.lightfastread.ui.light.LightIcons
+import com.lightfastread.ui.light.LightRule
+import com.lightfastread.ui.light.LightThemeTokens
+import com.lightfastread.ui.light.LightTopBar
 
+/**
+ * The word reader's top bar, revealed by tapping the top of the screen.
+ *
+ * Opaque and edged with a rule rather than translucent over the text. Upstream faded the bar to
+ * 95% over a Material surface, which on this panel is a black bar over black text — the fade
+ * bought nothing and the tonal elevation that was supposed to separate them is a no-op at pure
+ * black.
+ *
+ * Back leads to the book's pages, not out of the book: the page view is where a book opens, and
+ * this screen is the mode you asked for from there.
+ */
 @Composable
 fun TopBar(
     title: String,
@@ -26,37 +30,17 @@ fun TopBar(
     onQuickSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // On the Light Phone scheme the surface is pure black and tonal elevation
-    // is a no-op, so the bar needs an explicit edge to read as a bar. Keep it
-    // fully opaque there too - a 95%-alpha black over black text is just haze.
-    val lp = LocalIsLightPhone.current
-    Surface(
-        modifier = modifier.fillMaxWidth().lpBottomEdge(),
-        color = if (lp) MaterialTheme.colorScheme.surface
-                else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-        tonalElevation = if (lp) 0.dp else 4.dp,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(LightThemeTokens.colors.background)
+            .statusBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp)
-                .statusBarsPadding(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-            }
-            Text(
-                title,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-            )
-            IconButton(onClick = onQuickSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "Text settings")
-            }
-        }
+        LightTopBar(
+            title = title,
+            left = LightBarItem.Icon(icon = LightIcons.Back, onClick = onBack),
+            right = LightBarItem.Icon(icon = LightIcons.Settings, onClick = onQuickSettings),
+        )
+        LightRule()
     }
 }

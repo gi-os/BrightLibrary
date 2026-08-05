@@ -48,4 +48,10 @@ data class Settings(
     // three-line context preview - this is meant to be read normally, a full
     // page at a time.
     val readerFontSizeSp: Int = 22,
+    /**
+     * Show cover art in full colour on the shelf, by lifting LightOS's forced greyscale for as
+     * long as the shelf is up (see `ui/light/ColorMode.kt`). Needs a one-time adb grant; without
+     * it the covers simply stay grey, so this defaults on.
+     */
+    val colorCovers: Boolean = true,
 )

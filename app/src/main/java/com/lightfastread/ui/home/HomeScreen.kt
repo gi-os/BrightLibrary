@@ -1,38 +1,74 @@
 package com.lightfastread.ui.home
 
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.lightfastread.data.Book
 import com.lightfastread.data.BookRepository
+import com.lightfastread.data.Covers
+import com.lightfastread.data.SettingsRepository
+import com.lightfastread.hw.WheelScroll
 import com.lightfastread.parser.BookParser
+import com.lightfastread.ui.light.ColourEffect
+import com.lightfastread.ui.light.LightBarItem
+import com.lightfastread.ui.light.LightBottomBar
+import com.lightfastread.ui.light.LightRule
+import com.lightfastread.ui.light.LightText
+import com.lightfastread.ui.light.LightTextVariant
+import com.lightfastread.ui.light.LightThemeTokens
+import com.lightfastread.ui.light.LightTopBar
+import com.lightfastread.ui.light.designVerticalPxToDp
+import com.lightfastread.ui.light.gridUnitsAsDp
+import com.lightfastread.ui.light.lightClickable
+import com.lightfastread.ui.light.lightCombinedClickable
+import com.lightfastread.ui.light.lightInset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
-import com.lightfastread.hw.WheelScroll
-import com.lightfastread.ui.theme.lpBorder
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+/**
+ * The shelf.
+ *
+ * Two covers to a row, which on the LP3's 411dp width gives each book about 180dp — big enough
+ * that real cover art is worth looking at, and the reason the shelf lifts the phone's forced
+ * greyscale while it is on screen. Everything else here is white on black in the SDK's own grid
+ * and type scale; the covers are the only thing with hues in them, which is exactly how LightOS
+ * treats photographs.
+ *
+ * Settings and Add live in a [LightBottomBar] rather than in a floating action button and a top
+ * bar icon. Two text items, well inside the SDK's limit of three when any item is text.
+ */
 @Composable
 fun HomeScreen(
     onOpenBook: (Book) -> Unit,
@@ -40,21 +76,46 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val repo = remember { BookRepository.get(context) }
+    val settings by remember { SettingsRepository.get(context) }.state
     val books = repo.books
+    val colors = LightThemeTokens.colors
 
     var importing by remember { mutableStateOf(false) }
-    var importError by remember { mutableStateOf<String?>(null) }
-    var pendingDelete by remember { mutableStateOf<Book?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var actionsFor by remember { mutableStateOf<Book?>(null) }
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
-    WheelScroll(listState)
+    val gridState = rememberLazyGridState()
+    WheelScroll(gridState)
+
+    // Covers in colour for as long as the shelf is up, and only the shelf: opening a book drops
+    // back to greyscale, so reading is as monochrome as the rest of the phone.
+    ColourEffect(enabled = settings.colorCovers)
+
+    /**
+     * Ask Open Library for art the file didn't carry.
+     *
+     * Fired after the import finishes rather than during it, so a book is on the shelf the moment
+     * its text is parsed instead of waiting on a network round trip that may never come back.
+     */
+    val fetchCover: (Book) -> Unit = { book ->
+        scope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                Covers.fetchFromOpenLibrary(book.title, book.author)
+            }
+            if (bytes != null) {
+                withContext(Dispatchers.IO) { repo.setCover(book.id, bytes) }
+            } else {
+                status = "No cover found for \"${book.title}\""
+            }
+        }
+    }
 
     val pickFile = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         importing = true
-        importError = null
+        status = null
         scope.launch {
             try {
                 val parsed = withContext(Dispatchers.IO) { BookParser.parse(context, uri) }
@@ -74,188 +135,206 @@ fun HomeScreen(
                     chapters = chapters,
                 )
                 withContext(Dispatchers.IO) { repo.addBook(book, parsed.text) }
-            } catch (e: Exception) {
-                importError = e.message ?: "Failed to import"
-                Toast.makeText(context, importError, Toast.LENGTH_LONG).show()
-            } finally {
+
+                // The file's own art first — it is the publisher's cover, already in hand.
+                val embedded = parsed.coverImage?.takeIf { Covers.looksLikeImage(it) }
+                val stored = embedded != null &&
+                    withContext(Dispatchers.IO) { repo.setCover(id, embedded) }
                 importing = false
+                if (!stored) fetchCover(book)
+            } catch (e: Exception) {
+                importing = false
+                status = e.message ?: "Failed to import"
             }
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("FastRead") },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    pickFile.launch(arrayOf("application/epub+zip", "application/x-mobipocket-ebook", "application/octet-stream", "*/*"))
-                },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("Add book") },
-            )
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .statusBarsPadding(),
+    ) {
+        LightTopBar(title = "Books")
+
+        Box(Modifier.fillMaxWidth().weight(1f)) {
             if (books.isEmpty() && !importing) {
-                EmptyState(modifier = Modifier.align(Alignment.Center))
+                EmptyShelf(modifier = Modifier.align(Alignment.Center))
             } else {
-                LazyColumn(
-                    state = listState,
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(COLUMNS),
+                    state = gridState,
                     modifier = Modifier.fillMaxSize(),
-                    // Scaffold does not reserve space for the FAB, and with only
-                    // ~472dp of height on the LPIII the last book row ends up
-                    // permanently under "Add book". Pad past it.
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+                    contentPadding = PaddingValues(
+                        start = lightInset(),
+                        end = lightInset(),
+                        top = 0.5f.gridUnitsAsDp(),
+                        bottom = 1f.gridUnitsAsDp(),
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(1f.gridUnitsAsDp()),
+                    verticalArrangement = Arrangement.spacedBy(1f.gridUnitsAsDp()),
                 ) {
                     items(books, key = { it.id }) { book ->
-                        BookRow(
+                        ShelfBook(
                             book = book,
                             onClick = { onOpenBook(book) },
-                            onLongClick = { pendingDelete = book },
+                            onLongClick = { actionsFor = book },
                         )
                     }
                 }
             }
             if (importing) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxSize().background(colors.background),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        tonalElevation = 4.dp,
-                        border = lpBorder(),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(24.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator()
-                            Spacer(Modifier.width(16.dp))
-                            Text("Importing…")
-                        }
-                    }
+                    LightText("Importing…", LightTextVariant.Copy)
                 }
             }
         }
+
+        status?.let { message ->
+            Column(Modifier.lightClickable { status = null }) {
+                LightRule()
+                LightText(
+                    text = message,
+                    variant = LightTextVariant.Detail,
+                    lighten = true,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = lightInset(), vertical = 8f.designVerticalPxToDp()),
+                )
+            }
+        }
+
+        LightRule()
+        LightBottomBar(
+            items = listOf(
+                LightBarItem.Text(
+                    text = "ADD",
+                    onClick = {
+                        pickFile.launch(
+                            arrayOf(
+                                "application/epub+zip",
+                                "application/x-mobipocket-ebook",
+                                "application/octet-stream",
+                                "*/*",
+                            )
+                        )
+                    },
+                ),
+                LightBarItem.Text(text = "SETTINGS", onClick = onOpenSettings),
+            ),
+            modifier = Modifier.navigationBarsPadding(),
+        )
     }
 
-    pendingDelete?.let { book ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete book?") },
-            text = { Text("Remove \"${book.title}\" from your library?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    repo.deleteBook(book)
-                    pendingDelete = null
-                }) { Text("Delete") }
+    actionsFor?.let { book ->
+        BookActions(
+            book = book,
+            onFindCover = {
+                actionsFor = null
+                status = "Looking for a cover…"
+                fetchCover(book)
             },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
-            }
+            onDelete = {
+                actionsFor = null
+                repo.deleteBook(book)
+            },
+            onDismiss = { actionsFor = null },
         )
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+/** Two to a row, as asked. Anything more and the art stops being worth showing. */
+private const val COLUMNS = 2
+
+/** Book covers are 2:3, near enough to every trade paperback ever printed. */
+private const val COVER_ASPECT = 2f / 3f
+
 @Composable
-private fun BookRow(
+private fun ShelfBook(
     book: Book,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    val progress = if (book.totalWords > 0) book.currentWordIndex.toFloat() / book.totalWords else 0f
-    Surface(
+    val progress = if (book.totalWords > 0) {
+        (book.currentWordIndex.toFloat() / book.totalWords).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        shape = MaterialTheme.shapes.medium,
-        tonalElevation = 2.dp,
-        // Tonal elevation is what separates a row from the background upstream.
-        // The Light Phone scheme has no tonal lift, so rows get a hairline.
-        border = lpBorder(),
+            .lightCombinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.MenuBook,
-                contentDescription = null,
-                modifier = Modifier.size(36.dp),
-                tint = MaterialTheme.colorScheme.primary,
+        BookCover(
+            book = book,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(COVER_ASPECT),
+        )
+        // Progress as a rule directly under the cover: the shelf's one piece of state, and the
+        // cheapest possible way to draw it. A Material progress bar would put a grey slab here.
+        ProgressRule(progress)
+        Spacer(Modifier.height(6f.designVerticalPxToDp()))
+        // One line each, deliberately. The LP3 is only ~472dp tall, and a cell of a 2:3 cover plus
+        // two lines of title is taller than the shelf — so nothing of the next row would show and
+        // the shelf would read as holding exactly two books. The cover is the label anyway; this is
+        // the caption under it.
+        LightText(
+            text = book.title,
+            variant = LightTextVariant.Detail,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (book.author.isNotBlank()) {
+            LightText(
+                text = book.author,
+                variant = LightTextVariant.Superfine,
+                lighten = true,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    book.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (book.author.isNotBlank()) {
-                    Text(
-                        book.author,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "${(progress * 100).toInt()}% • ${book.totalWords} words • ${book.format}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun ProgressRule(progress: Float) {
+    val colors = LightThemeTokens.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(3f.designVerticalPxToDp())
+            .background(colors.rule),
     ) {
-        Icon(
-            Icons.Default.MenuBook,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "No books yet",
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Tap “Add book” to import an EPUB or MOBI file from your device.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (progress > 0f) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress)
+                    .background(colors.content),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyShelf(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(horizontal = lightInset()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        LightText("No books yet", LightTextVariant.Subheading, align = TextAlign.Center)
+        Spacer(Modifier.height(10f.designVerticalPxToDp()))
+        LightText(
+            text = "Add an EPUB or MOBI from your phone and it will appear here, cover and all.",
+            variant = LightTextVariant.Detail,
+            lighten = true,
+            align = TextAlign.Center,
         )
     }
 }

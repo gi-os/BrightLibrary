@@ -5,13 +5,11 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,8 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lightfastread.data.BionicMode
@@ -35,6 +33,21 @@ import com.lightfastread.data.SettingsRepository
 import com.lightfastread.data.SwipeMode
 import com.lightfastread.data.ThemeMode
 import com.lightfastread.data.TitleStyle
+import com.lightfastread.ui.light.ColorMode
+import com.lightfastread.ui.light.LightBarItem
+import com.lightfastread.ui.light.LightIcon
+import com.lightfastread.ui.light.LightIcons
+import com.lightfastread.ui.light.LightRule
+import com.lightfastread.ui.light.LightText
+import com.lightfastread.ui.light.LightTextVariant
+import com.lightfastread.ui.light.LightThemeTokens
+import com.lightfastread.ui.light.LightTopBar
+import com.lightfastread.ui.light.designVerticalPxToDp
+import com.lightfastread.ui.light.gridUnitsAsDp
+import com.lightfastread.ui.light.lightClickable
+import com.lightfastread.ui.light.lightInset
+import com.lightfastread.ui.light.lightTextStyle
+import com.lightfastread.ui.light.verticalGridUnitsAsDp
 import com.lightfastread.ui.reader.bionicAnnotated
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -44,117 +57,76 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.Canvas
 import android.graphics.Color as AndroidColor
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Every setting the app has, in the LightOS idiom: a bar, a stack of rows, hairlines between
+ * sections and nothing else. Selection is a pair of brackets, on/off is the SDK's own select
+ * glyph, and the only Material widget left is the slider (see [LightSlider]).
+ */
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { SettingsRepository.get(context) }
     val s by repo.state
+    val colors = LightThemeTokens.colors
     // The longest screen in the app, and the one the wheel earns its keep on.
     val scroll = rememberScrollState()
     WheelScroll(scroll)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .statusBarsPadding(),
+    ) {
+        LightTopBar(
+            title = "Settings",
+            left = LightBarItem.Icon(LightIcons.Back, onClick = onBack),
+        )
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+                .fillMaxWidth()
+                .weight(1f)
+                .navigationBarsPadding()
                 .verticalScroll(scroll)
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(horizontal = lightInset()),
         ) {
             SectionTitle("Input")
-            Text(
+            Caption(
                 "Hold zones occupy the middle 3/5 (left 1/3 = back, right 2/3 = forward). " +
                     "The bottom 1/5 is a swipe band. Top 1/5 toggles the chapter bar.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = s.showZoneGuides,
-                        onClick = { repo.update { it.copy(showZoneGuides = !s.showZoneGuides) } },
-                        role = Role.Switch,
-                    )
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Switch(
-                    checked = s.showZoneGuides,
-                    onCheckedChange = { v -> repo.update { it.copy(showZoneGuides = v) } },
+            ToggleRow(
+                label = "Show zone guides",
+                caption = "Draws the gesture boundaries above. Handy while learning them, " +
+                    "clutter once you know where they are.",
+                checked = s.showZoneGuides,
+                onToggle = { v -> repo.update { it.copy(showZoneGuides = v) } },
+            )
+            Spacer(Modifier.height(12f.designVerticalPxToDp()))
+            RowLabel("Swipe band mode")
+            SwipeMode.values().forEach { mode ->
+                ChoiceRow(
+                    label = when (mode) {
+                        SwipeMode.Normal -> "Normal swipe"
+                        SwipeMode.Zone -> "Zone swipe"
+                    },
+                    caption = when (mode) {
+                        SwipeMode.Normal -> "Swipe right to advance, left to go back"
+                        SwipeMode.Zone -> "Move finger in right 2/3 to advance, left 1/3 to go back (any direction)"
+                    },
+                    selected = s.swipeMode == mode,
+                    onClick = { repo.update { it.copy(swipeMode = mode) } },
                 )
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("Show zone guides", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Draws the gesture boundaries above. Handy while learning them, " +
-                            "clutter once you know where they are.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Text("Swipe band mode", style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.height(4.dp))
-            Column(modifier = Modifier.selectableGroup()) {
-                SwipeMode.values().forEach { mode ->
-                    val selected = s.swipeMode == mode
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selected,
-                                onClick = { repo.update { it.copy(swipeMode = mode) } },
-                                role = Role.RadioButton,
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected, onClick = null)
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                when (mode) {
-                                    SwipeMode.Normal -> "Normal swipe"
-                                    SwipeMode.Zone -> "Zone swipe"
-                                },
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Text(
-                                when (mode) {
-                                    SwipeMode.Normal -> "Swipe right to advance, left to go back"
-                                    SwipeMode.Zone -> "Move finger in right 2/3 to advance, left 1/3 to go back (any direction)"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                            )
-                        }
-                    }
-                }
             }
             IntSliderRow(
-                label = "Swipe distance per word (dp)",
+                label = "Swipe distance per word",
+                unit = "dp",
                 value = s.swipeDpPerWord,
                 range = 2f..80f,
                 step = 1,
                 onChange = { v -> repo.update { it.copy(swipeDpPerWord = v) } }
             )
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Speed")
             IntSliderRow(
                 label = "Min WPM (left edge)",
@@ -175,28 +147,26 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             )
             IntSliderRow(
-                label = "Speed ramp-up (ms)",
+                label = "Speed ramp-up",
+                unit = "ms",
                 value = s.rampUpMs,
                 range = 0f..2000f,
                 step = 50,
                 onChange = { v -> repo.update { it.copy(rampUpMs = v) } }
             )
             IntSliderRow(
-                label = "Backward hold delay (ms)",
+                label = "Backward hold delay",
+                unit = "ms",
                 value = s.backwardHoldMs,
                 range = 100f..2000f,
                 step = 50,
                 onChange = { v -> repo.update { it.copy(backwardHoldMs = v) } }
             )
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Pauses")
-            Text(
+            Caption(
                 "Multiplier of the time between words at the current WPM. x2.0 = pause for 2 word-intervals.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
-            Spacer(Modifier.height(4.dp))
             FloatSliderRow(
                 label = "Pause after sentence",
                 value = s.pauseAfterDotFactor,
@@ -226,13 +196,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 step = 1,
                 onChange = { v -> repo.update { it.copy(letterDelayThreshold = v) } }
             )
-            Text(
+            Caption(
                 "Each letter beyond the threshold adds (factor − 1) × word-interval to that word's display time, so extra delay scales with the current WPM.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Text")
             IntSliderRow(
                 label = "Font size",
@@ -241,56 +208,38 @@ fun SettingsScreen(onBack: () -> Unit) {
                 step = 2,
                 onChange = { v -> repo.update { it.copy(fontSizeSp = v) } }
             )
-            Spacer(Modifier.height(8.dp))
-            Text("Preview", style = MaterialTheme.typography.labelMedium)
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                tonalElevation = 2.dp,
-                shape = MaterialTheme.shapes.medium,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    val mainBionic = s.bionicMode == BionicMode.MainOnly || s.bionicMode == BionicMode.Both
-                    val previewText: AnnotatedString = if (mainBionic) {
-                        bionicAnnotated(
-                            "reading",
-                            boldWeight = FontWeight(s.bionicBoldWeight),
-                            lightWeight = FontWeight(s.bionicLightWeight),
-                        )
-                    } else AnnotatedString("reading")
-                    Text(
-                        text = previewText,
-                        fontSize = s.fontSizeSp.sp,
-                        fontFamily = Fonts.familyFor(s.fontFamily),
-                        fontWeight = if (mainBionic) FontWeight.Normal else FontWeight.Medium,
+            Spacer(Modifier.height(8f.designVerticalPxToDp()))
+            RowLabel("Preview")
+            SampleFrame(height = 8f.verticalGridUnitsAsDp()) {
+                val mainBionic = s.bionicMode == BionicMode.MainOnly || s.bionicMode == BionicMode.Both
+                val previewText: AnnotatedString = if (mainBionic) {
+                    bionicAnnotated(
+                        "reading",
+                        boldWeight = FontWeight(s.bionicBoldWeight),
+                        lightWeight = FontWeight(s.bionicLightWeight),
                     )
-                }
+                } else AnnotatedString("reading")
+                Text(
+                    text = previewText,
+                    color = colors.content,
+                    fontSize = s.fontSizeSp.sp,
+                    fontFamily = Fonts.familyFor(s.fontFamily),
+                    fontWeight = if (mainBionic) FontWeight.Normal else FontWeight.Medium,
+                )
             }
-            Spacer(Modifier.height(16.dp))
-            Text("Font family", style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.height(8.dp))
-            Column(modifier = Modifier.selectableGroup()) {
-                Fonts.all.forEach { face ->
-                    FontFamilyOption(
-                        face = face,
-                        selected = s.fontFamily == face.key,
-                        onClick = { repo.update { it.copy(fontFamily = face.key) } },
-                    )
-                }
+            Spacer(Modifier.height(12f.designVerticalPxToDp()))
+            RowLabel("Font family")
+            Fonts.all.forEach { face ->
+                FontFamilyOption(
+                    face = face,
+                    selected = s.fontFamily == face.key,
+                    onClick = { repo.update { it.copy(fontFamily = face.key) } },
+                )
             }
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Word fade")
-            Text(
+            Caption(
                 "Fades the focal word in and out over each interval. The percentage is the share of one word-interval (1 s at 60 WPM) split equally between fade-in and fade-out.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
             FloatSliderRow(
                 label = "Fade duration (% of interval)",
@@ -301,13 +250,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 display = { v -> if (v <= 0f) "off" else "%.0f%%".format(v * 100) },
             )
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Context text")
-            Text(
-                "Surrounding sentence shown above the focal word.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-            )
+            Caption("Surrounding sentence shown above the focal word.")
             IntSliderRow(
                 label = "Context font size",
                 value = s.contextFontSizeSp,
@@ -324,65 +268,35 @@ fun SettingsScreen(onBack: () -> Unit) {
                 display = { v -> "%.0f%%".format((1f - v) * 100) },
             )
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Bionic reading")
-            Text(
+            Caption(
                 "Bolds the first few letters of each word — the brain fills in the rest, helping fast reading.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
-            Spacer(Modifier.height(8.dp))
-            Column(modifier = Modifier.selectableGroup()) {
-                BionicMode.values().forEach { mode ->
-                    val selected = s.bionicMode == mode
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selected,
-                                onClick = { repo.update { it.copy(bionicMode = mode) } },
-                                role = Role.RadioButton,
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected, onClick = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            when (mode) {
-                                BionicMode.Off -> "Off"
-                                BionicMode.MainOnly -> "Main word only"
-                                BionicMode.ContextOnly -> "Context rows only"
-                                BionicMode.Both -> "Both"
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                }
+            BionicMode.values().forEach { mode ->
+                ChoiceRow(
+                    label = when (mode) {
+                        BionicMode.Off -> "Off"
+                        BionicMode.MainOnly -> "Main word only"
+                        BionicMode.ContextOnly -> "Context rows only"
+                        BionicMode.Both -> "Both"
+                    },
+                    selected = s.bionicMode == mode,
+                    onClick = { repo.update { it.copy(bionicMode = mode) } },
+                )
             }
             if (s.bionicMode != BionicMode.Off) {
-                Spacer(Modifier.height(8.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    tonalElevation = 2.dp,
-                    shape = MaterialTheme.shapes.medium,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(72.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = bionicAnnotated(
-                                "reading",
-                                boldWeight = FontWeight(s.bionicBoldWeight),
-                                lightWeight = FontWeight(s.bionicLightWeight),
-                            ),
-                            fontSize = 32.sp,
-                            fontFamily = Fonts.familyFor(s.fontFamily),
-                        )
-                    }
+                Spacer(Modifier.height(8f.designVerticalPxToDp()))
+                SampleFrame(height = 5f.verticalGridUnitsAsDp()) {
+                    Text(
+                        text = bionicAnnotated(
+                            "reading",
+                            boldWeight = FontWeight(s.bionicBoldWeight),
+                            lightWeight = FontWeight(s.bionicLightWeight),
+                        ),
+                        color = colors.content,
+                        fontSize = 32.sp,
+                        fontFamily = Fonts.familyFor(s.fontFamily),
+                    )
                 }
                 IntSliderRow(
                     label = "Bold weight",
@@ -400,93 +314,46 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("ORP (focal point)")
-            Text(
+            Caption(
                 "Highlights one letter per word and horizontally aligns words so " +
                     "the focal letter sits at a fixed point on screen. Eyes stop " +
                     "moving between words.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = s.orpEnabled,
-                        onClick = { repo.update { it.copy(orpEnabled = !s.orpEnabled) } },
-                        role = Role.Switch,
-                    )
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Switch(
-                    checked = s.orpEnabled,
-                    onCheckedChange = { v -> repo.update { it.copy(orpEnabled = v) } },
-                )
-                Spacer(Modifier.width(12.dp))
-                Text("Enable ORP", style = MaterialTheme.typography.bodyLarge)
-            }
+            ToggleRow(
+                label = "Enable ORP",
+                checked = s.orpEnabled,
+                onToggle = { v -> repo.update { it.copy(orpEnabled = v) } },
+            )
             if (s.orpEnabled) {
-                Spacer(Modifier.height(8.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    tonalElevation = 2.dp,
-                    shape = MaterialTheme.shapes.medium,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(72.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val orpColor = Color(s.orpColorArgb)
-                        Text(
-                            text = buildAnnotatedString {
-                                append("rea")
-                                if (s.orpFocalSameColor) {
+                Spacer(Modifier.height(8f.designVerticalPxToDp()))
+                SampleFrame(height = 5f.verticalGridUnitsAsDp()) {
+                    val orpColor = Color(s.orpColorArgb)
+                    Text(
+                        text = buildAnnotatedString {
+                            append("rea")
+                            if (s.orpFocalSameColor) {
+                                append("d")
+                            } else {
+                                withStyle(SpanStyle(color = orpColor)) {
                                     append("d")
-                                } else {
-                                    withStyle(SpanStyle(color = orpColor)) {
-                                        append("d")
-                                    }
                                 }
-                                append("ing")
-                            },
-                            fontSize = 32.sp,
-                            fontFamily = Fonts.familyFor(s.fontFamily),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = s.orpFocalSameColor,
-                            onClick = { repo.update { it.copy(orpFocalSameColor = !s.orpFocalSameColor) } },
-                            role = Role.Switch,
-                        )
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Switch(
-                        checked = s.orpFocalSameColor,
-                        onCheckedChange = { v -> repo.update { it.copy(orpFocalSameColor = v) } },
+                            }
+                            append("ing")
+                        },
+                        color = colors.content,
+                        fontSize = 32.sp,
+                        fontFamily = Fonts.familyFor(s.fontFamily),
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("Focal letter in body color", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "Keep the alignment effect without coloring the focal letter.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                        )
-                    }
                 }
+                ToggleRow(
+                    label = "Focal letter in body color",
+                    caption = "Keep the alignment effect without coloring the focal letter.",
+                    checked = s.orpFocalSameColor,
+                    onToggle = { v -> repo.update { it.copy(orpFocalSameColor = v) } },
+                )
                 if (!s.orpFocalSameColor) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(8f.designVerticalPxToDp()))
                     OrpColorPicker(
                         argb = s.orpColorArgb,
                         onArgbChange = { v -> repo.update { it.copy(orpColorArgb = v) } },
@@ -494,42 +361,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Title style")
-            Text(
-                "How chapter titles inside the text stand out from body text.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-            )
-            Spacer(Modifier.height(8.dp))
-            Column(modifier = Modifier.selectableGroup()) {
-                TitleStyle.values().forEach { style ->
-                    val selected = s.titleStyle == style
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selected,
-                                onClick = { repo.update { it.copy(titleStyle = style) } },
-                                role = Role.RadioButton,
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected, onClick = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            when (style) {
-                                TitleStyle.Color -> "Color"
-                                TitleStyle.Underline -> "Underline"
-                                TitleStyle.Both -> "Color + underline"
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                }
+            Caption("How chapter titles inside the text stand out from body text.")
+            TitleStyle.values().forEach { style ->
+                ChoiceRow(
+                    label = when (style) {
+                        TitleStyle.Color -> "Color"
+                        TitleStyle.Underline -> "Underline"
+                        TitleStyle.Both -> "Color + underline"
+                    },
+                    selected = s.titleStyle == style,
+                    onClick = { repo.update { it.copy(titleStyle = style) } },
+                )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8f.designVerticalPxToDp()))
             TitleColorPicker(
                 argb = s.titleColorArgb,
                 onArgbChange = { v -> repo.update { it.copy(titleColorArgb = v) } },
@@ -537,39 +382,36 @@ fun SettingsScreen(onBack: () -> Unit) {
                 underline = s.titleStyle != TitleStyle.Color,
             )
 
-            Spacer(Modifier.height(16.dp))
             SectionTitle("Appearance")
-            Text("Theme", style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.height(8.dp))
-            Text(
+            RowLabel("Theme")
+            Caption(
                 "Light Phone uses pure #000000 on every surface so OLED pixels stay " +
                     "off, and flattens the title and ORP accents to grey because the " +
                     "panel is black and white anyway.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             )
-            Spacer(Modifier.height(8.dp))
-            Column(modifier = Modifier.selectableGroup()) {
-                ThemeMode.values().forEach { mode ->
-                    val selected = s.themeMode == mode
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selected,
-                                onClick = { repo.update { it.copy(themeMode = mode) } },
-                                role = Role.RadioButton,
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected, onClick = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(themeModeLabel(mode))
-                    }
+            ThemeMode.values().forEach { mode ->
+                ChoiceRow(
+                    label = themeModeLabel(mode),
+                    selected = s.themeMode == mode,
+                    onClick = { repo.update { it.copy(themeMode = mode) } },
+                )
+            }
+            Spacer(Modifier.height(12f.designVerticalPxToDp()))
+            ToggleRow(
+                label = "Colour covers",
+                caption = "Book covers show in full colour on the shelf. Everything else " +
+                    "stays black and white.",
+                checked = s.colorCovers,
+                onToggle = { v -> repo.update { it.copy(colorCovers = v) } },
+            ) {
+                // Not an error and not a blocker: without the grant the shelf simply stays grey,
+                // so the missing permission is worth a line of explanation and nothing louder.
+                if (!ColorMode.granted(context)) {
+                    Caption("adb shell pm grant com.lightfastread android.permission.WRITE_SECURE_SETTINGS")
+                    Caption("Covers stay grey until that one-time grant is given.")
                 }
             }
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(2f.gridUnitsAsDp()))
         }
     }
 }
@@ -583,11 +425,138 @@ private fun themeModeLabel(mode: ThemeMode): String = when (mode) {
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+    Spacer(Modifier.height(20f.designVerticalPxToDp()))
+    LightText(
+        text = text,
+        variant = LightTextVariant.Subheading,
+        modifier = Modifier.padding(bottom = 8f.designVerticalPxToDp()),
     )
+    LightRule()
+    Spacer(Modifier.height(8f.designVerticalPxToDp()))
+}
+
+/** Explanatory prose. Always the quietest thing on screen. */
+@Composable
+private fun Caption(text: String) {
+    LightText(
+        text = text,
+        variant = LightTextVariant.Detail,
+        lighten = true,
+        modifier = Modifier.padding(bottom = 6f.designVerticalPxToDp()),
+    )
+}
+
+@Composable
+private fun RowLabel(text: String) {
+    LightText(
+        text = text,
+        variant = LightTextVariant.Copy,
+        modifier = Modifier.padding(bottom = 4f.designVerticalPxToDp()),
+    )
+}
+
+@Composable
+private fun ToggleRow(
+    label: String,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit,
+    caption: String? = null,
+    extra: (@Composable ColumnScope.() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .lightClickable { onToggle(!checked) }
+            .padding(vertical = 8f.designVerticalPxToDp()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            LightText(label, LightTextVariant.Copy)
+            if (caption != null) {
+                LightText(caption, LightTextVariant.Detail, lighten = true)
+            }
+            extra?.invoke(this)
+        }
+        Spacer(Modifier.width(1f.gridUnitsAsDp()))
+        LightIcon(
+            icon = if (checked) LightIcons.SelectOn else LightIcons.SelectOff,
+            contentDescription = label,
+        )
+    }
+}
+
+/**
+ * One option out of a set. The chosen one is bracketed rather than tinted or ticked: the panel is
+ * matte greyscale, and a change of shade alone does not read at arm's length.
+ */
+@Composable
+private fun ChoiceRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    caption: String? = null,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .lightClickable(onClick = onClick)
+            .padding(vertical = 6f.designVerticalPxToDp()),
+    ) {
+        LightText(
+            text = if (selected) "[ $label ]" else label,
+            variant = LightTextVariant.Button,
+            lighten = !selected,
+        )
+        if (caption != null) {
+            LightText(caption, LightTextVariant.Detail, lighten = true)
+        }
+    }
+}
+
+/**
+ * The slider is the one Material control left in the app. LightOS has none, but the alternative
+ * for WPM and font size is a numeric stepper, and tapping a plus sign eighty times to cross a
+ * range is worse than borrowing a widget. Stripped to two shades and no tick marks so it reads as
+ * a rule with a dot on it.
+ */
+@Composable
+private fun LightSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+) {
+    val colors = LightThemeTokens.colors
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        valueRange = valueRange,
+        colors = SliderDefaults.colors(
+            thumbColor = colors.content,
+            activeTrackColor = colors.content,
+            inactiveTrackColor = colors.rule,
+        ),
+    )
+}
+
+@Composable
+private fun SliderRow(
+    label: String,
+    valueText: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+) {
+    Column(modifier = Modifier.padding(vertical = 4f.designVerticalPxToDp())) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            LightText(label, LightTextVariant.Copy)
+            LightText(valueText, LightTextVariant.Superfine)
+        }
+        LightSlider(value = value, onValueChange = onValueChange, valueRange = range)
+    }
 }
 
 @Composable
@@ -597,26 +566,15 @@ private fun IntSliderRow(
     range: ClosedFloatingPointRange<Float>,
     step: Int,
     onChange: (Int) -> Unit,
+    unit: String? = null,
 ) {
-    val steps = ((range.endInclusive - range.start) / step).toInt() - 1
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-            Text(value.toString(), style = MaterialTheme.typography.bodyMedium)
-        }
-        Slider(
-            value = value.toFloat().coerceIn(range),
-            onValueChange = { v ->
-                val rounded = (v / step).roundToInt() * step
-                onChange(rounded)
-            },
-            valueRange = range,
-            steps = steps.coerceAtLeast(0),
-        )
-    }
+    SliderRow(
+        label = label,
+        valueText = if (unit == null) value.toString() else "$value $unit",
+        value = value.toFloat().coerceIn(range),
+        range = range,
+        onValueChange = { v -> onChange((v / step).roundToInt() * step) },
+    )
 }
 
 @Composable
@@ -628,25 +586,29 @@ private fun FloatSliderRow(
     onChange: (Float) -> Unit,
     display: (Float) -> String = { v -> if (v <= 0f) "off" else "x%.1f".format(v) },
 ) {
-    val steps = ((range.endInclusive - range.start) / step).roundToInt() - 1
-    val displayText = display(value)
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+    SliderRow(
+        label = label,
+        valueText = display(value),
+        value = value.coerceIn(range),
+        range = range,
+        onValueChange = { v -> onChange((v / step).roundToInt() * step) },
+    )
+}
+
+/** Type set at a size and face the user chose, which is the one thing the scale cannot say. */
+@Composable
+private fun SampleFrame(height: Dp, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        LightRule()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-            Text(displayText, style = MaterialTheme.typography.bodyMedium)
+            content()
         }
-        Slider(
-            value = value.coerceIn(range),
-            onValueChange = { v ->
-                val rounded = (v / step).roundToInt() * step
-                onChange(rounded)
-            },
-            valueRange = range,
-            steps = steps.coerceAtLeast(0),
-        )
+        LightRule()
     }
 }
 
@@ -656,23 +618,19 @@ private fun FontFamilyOption(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    Row(
+    val colors = LightThemeTokens.colors
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .selectable(
-                selected = selected,
-                onClick = onClick,
-                role = Role.RadioButton,
-            )
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .lightClickable(onClick = onClick)
+            .padding(vertical = 6f.designVerticalPxToDp()),
     ) {
-        RadioButton(selected = selected, onClick = null)
-        Spacer(Modifier.width(8.dp))
+        // Each face names itself in its own typeface, so this one row cannot go through LightText:
+        // the variant carries the size and tracking, the face overrides only the family.
         Text(
-            face.displayName,
-            fontFamily = face.family,
-            style = MaterialTheme.typography.bodyLarge,
+            text = if (selected) "[ ${face.displayName} ]" else face.displayName,
+            style = lightTextStyle(LightTextVariant.Button).copy(fontFamily = face.family),
+            color = if (selected) colors.content else colors.contentSecondary,
         )
     }
 }
@@ -684,6 +642,7 @@ private fun TitleColorPicker(
     showColorControls: Boolean = true,
     underline: Boolean = false,
 ) {
+    val colors = LightThemeTokens.colors
     // Initialize from the persisted ARGB once on first composition. Sliders are
     // the source of truth thereafter — re-deriving hue/sat/value on every argb
     // change would cause float-rounding jitter as the user drags.
@@ -702,54 +661,39 @@ private fun TitleColorPicker(
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Preview swatch with sample title text on top.
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            tonalElevation = 2.dp,
-            shape = MaterialTheme.shapes.medium,
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "Chapter Title",
-                    color = if (showColorControls) previewColor else MaterialTheme.colorScheme.onSurface,
-                    textDecoration = if (underline) androidx.compose.ui.text.style.TextDecoration.Underline else null,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
+        SampleFrame(height = 3.5f.verticalGridUnitsAsDp()) {
+            LightText(
+                text = "Chapter Title",
+                variant = LightTextVariant.Subheading,
+                color = if (showColorControls) previewColor else colors.content,
+                underline = underline,
+            )
         }
 
         if (showColorControls) {
-            Spacer(Modifier.height(8.dp))
-            Text("Hue", style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(8f.designVerticalPxToDp()))
+            RowLabel("Hue")
             HueBar(
                 hue = hue,
                 onHueChange = { hue = it; emit() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(36.dp)
-                    .padding(vertical = 4.dp),
+                    .height(2f.verticalGridUnitsAsDp())
+                    .padding(vertical = 4f.designVerticalPxToDp()),
             )
-
-            Spacer(Modifier.height(4.dp))
-            Text("Saturation", style = MaterialTheme.typography.labelMedium)
-            Slider(
+            SliderRow(
+                label = "Saturation",
+                valueText = "%.0f%%".format(sat * 100),
                 value = sat,
+                range = 0f..1f,
                 onValueChange = { sat = it; emit() },
-                valueRange = 0f..1f,
             )
-
-            Text("Brightness", style = MaterialTheme.typography.labelMedium)
-            Slider(
+            SliderRow(
+                label = "Brightness",
+                valueText = "%.0f%%".format(value * 100),
                 value = value,
+                range = 0f..1f,
                 onValueChange = { value = it; emit() },
-                valueRange = 0f..1f,
             )
         }
     }
@@ -772,31 +716,37 @@ private fun OrpColorPicker(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Hue", style = MaterialTheme.typography.labelMedium)
+        RowLabel("Hue")
         HueBar(
             hue = hue,
             onHueChange = { hue = it; emit() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp)
-                .padding(vertical = 4.dp),
+                .height(2f.verticalGridUnitsAsDp())
+                .padding(vertical = 4f.designVerticalPxToDp()),
         )
-        Spacer(Modifier.height(4.dp))
-        Text("Saturation", style = MaterialTheme.typography.labelMedium)
-        Slider(
+        SliderRow(
+            label = "Saturation",
+            valueText = "%.0f%%".format(sat * 100),
             value = sat,
+            range = 0f..1f,
             onValueChange = { sat = it; emit() },
-            valueRange = 0f..1f,
         )
-        Text("Brightness", style = MaterialTheme.typography.labelMedium)
-        Slider(
+        SliderRow(
+            label = "Brightness",
+            valueText = "%.0f%%".format(value * 100),
             value = value,
+            range = 0f..1f,
             onValueChange = { value = it; emit() },
-            valueRange = 0f..1f,
         )
     }
 }
 
+/**
+ * The one place in the app that draws in colour on purpose. Left exactly as it was: the panel is
+ * greyscale, so the gradient is a grey ramp there, but the value it picks is real and shows up on
+ * any other phone the APK is sideloaded onto.
+ */
 @Composable
 private fun HueBar(
     hue: Float,

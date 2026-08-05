@@ -1,5 +1,6 @@
 package com.lightfastread.ui.reader
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -48,6 +49,8 @@ import com.lightfastread.data.Chapter
 import com.lightfastread.data.Fonts
 import com.lightfastread.data.SettingsRepository
 import com.lightfastread.data.SwipeMode
+import com.lightfastread.ui.light.LightText
+import com.lightfastread.ui.light.LightTextVariant
 import com.lightfastread.ui.theme.LocalIsLightPhone
 import com.lightfastread.ui.theme.toLightPhoneGrey
 import kotlinx.coroutines.Dispatchers
@@ -105,12 +108,19 @@ fun ReaderScreen(
     var isHolding by remember { mutableStateOf(false) }
     var showChapterList by rememberSaveable { mutableStateOf(false) }
     var showBookmarksList by rememberSaveable { mutableStateOf(false) }
-    var showEreader by rememberSaveable { mutableStateOf(false) }
+    // A book opens to its pages, not to the word reader. FastRead is a button in the page
+    // view's top bar, which is itself hidden until you tap the screen — so the app you get
+    // when you open a book is an e-reader, and RSVP is a mode you ask for.
+    var showEreader by rememberSaveable { mutableStateOf(true) }
     val historyBack = rememberSaveable(bookId, saver = IntListSaver) { mutableStateListOf<Int>() }
     val historyForward = rememberSaveable(bookId, saver = IntListSaver) { mutableStateListOf<Int>() }
     val bookmarks = bookRepo.books.firstOrNull { it.id == bookId }?.bookmarks ?: emptyList()
 
     val scope = rememberCoroutineScope()
+
+    // The system gesture agrees with the top bar's own arrow. While the page view is up it owns
+    // back itself (it is a Dialog, with its own window), so this only ever fires in RSVP.
+    BackHandler(enabled = !showEreader) { showEreader = true }
 
     val jumpTo: (Int) -> Unit = { target ->
         val safe = target.coerceIn(0, (words.size - 1).coerceAtLeast(0))
@@ -480,17 +490,19 @@ fun ReaderScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    LightText("Opening…", LightTextVariant.Copy, lighten = true)
                 }
             } else if (words.isEmpty()) {
-                Text(
-                    "No readable text in this book.",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .wrapContentSize(Alignment.Center)
-                        .padding(24.dp),
-                    textAlign = TextAlign.Center,
-                )
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LightText(
+                        text = "No readable text in this book.",
+                        variant = LightTextVariant.Detail,
+                        align = TextAlign.Center,
+                    )
+                }
             } else {
                 val quoteInfo = remember(words, paragraphBreakAfter) {
                     computeQuoteInfo(words, paragraphBreakAfter)
@@ -539,7 +551,10 @@ fun ReaderScreen(
                 if (showTopBar) {
                     TopBar(
                         title = book.title,
-                        onBack = onBack,
+                        // Back out of the word reader is back to the *pages*, not out of the
+                        // book: the page view is the book's home screen now, and leaving from
+                        // there is one more press.
+                        onBack = { showEreader = true },
                         onQuickSettings = { showQuickSettings = true },
                     )
                 }
@@ -592,9 +607,14 @@ fun ReaderScreen(
                 )
             }
 
-            if (showEreader) {
+            // Only once there is something to paginate. Handing the page view an empty word
+            // list makes it measure zero pages, decide the book is unreadable and hand itself
+            // straight back — which on an ereader-first open looks like the book refusing to
+            // open at all.
+            if (showEreader && !loading && words.isNotEmpty()) {
                 EreaderScreen(
                     bookId = bookId,
+                    title = book.title,
                     words = words,
                     paragraphBreakAfter = paragraphBreakAfter,
                     isItalicWord = italic,
@@ -607,9 +627,13 @@ fun ReaderScreen(
                     fontKey = settings.fontFamily,
                     fontSizeSp = settings.readerFontSizeSp,
                     initialWordIndex = currentIndex,
-                    onClose = { newIndex ->
+                    onFastRead = { newIndex ->
                         showEreader = false
                         jumpTo(newIndex)
+                    },
+                    onExit = { newIndex ->
+                        jumpTo(newIndex)
+                        onBack()
                     },
                 )
             }

@@ -4,18 +4,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -52,9 +53,17 @@ import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.data.TitleStyle
 import com.lightfastread.hw.WheelInDialog
 import com.lightfastread.hw.WheelSteps
-import com.lightfastread.ui.theme.LocalIsLightPhone
-import com.lightfastread.ui.theme.LpContrast
+import com.lightfastread.ui.light.LightBarItem
+import com.lightfastread.ui.light.LightIcons
+import com.lightfastread.ui.light.LightRule
+import com.lightfastread.ui.light.LightText
+import com.lightfastread.ui.light.LightTextVariant
+import com.lightfastread.ui.light.LightThemeTokens
+import com.lightfastread.ui.light.LightTopBar
+import com.lightfastread.ui.light.designVerticalPxToDp
+import com.lightfastread.ui.light.lightInset
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -109,6 +118,14 @@ private const val NOTCHES_PER_PAGE = 3
 private const val WHEEL_IDLE_MS = 1_500L
 
 /**
+ * How long the top bar stays up after a tap.
+ *
+ * Long enough to read the title and reach either end of the bar, short enough that a tap
+ * meant for the page doesn't leave a bar sitting over the text for the rest of the chapter.
+ */
+private const val CHROME_VISIBLE_MS = 4_000L
+
+/**
  * Pagination survives closing and reopening the reader.
  *
  * Measuring a whole novel takes a second or two, which is fine behind a progress
@@ -131,6 +148,8 @@ private object PageCache {
 @Composable
 fun EreaderScreen(
     bookId: String,
+    /** Shown in the top bar when it is up, so you can tell what you have open. */
+    title: String,
     words: List<String>,
     paragraphBreakAfter: BooleanArray,
     isItalicWord: BooleanArray,
@@ -141,7 +160,10 @@ fun EreaderScreen(
     fontKey: String,
     fontSizeSp: Int,
     initialWordIndex: Int,
-    onClose: (wordIndex: Int) -> Unit,
+    /** Hand the reader over to the RSVP screen, at the page currently showing. */
+    onFastRead: (wordIndex: Int) -> Unit,
+    /** Leave the book entirely, at the page currently showing. */
+    onExit: (wordIndex: Int) -> Unit,
 ) {
     val applyColor = titleStyle == TitleStyle.Color || titleStyle == TitleStyle.Both
     val applyUnderline = titleStyle == TitleStyle.Underline || titleStyle == TitleStyle.Both
@@ -174,20 +196,32 @@ fun EreaderScreen(
 
     var pages by remember(bookId) { mutableStateOf<List<IntRange>>(emptyList()) }
     var progress by remember(bookId) { mutableFloatStateOf(0f) }
-    // The close button is collapsed until asked for, so it never sits over the
-    // text while reading - the same pattern as the RSVP reader's own top bar.
+    // The chrome is collapsed until asked for, so nothing sits over the text while
+    // reading. This is the book's home screen now - opening a book comes straight
+    // here - so the bar it reveals carries the way *out* as well: back to the shelf
+    // on the left, over to the word reader on the right.
     var showChrome by remember(bookId) { mutableStateOf(false) }
     val pagerState = rememberPagerState(initialPage = 0) { pages.size }
 
-    // Whichever page is showing decides where RSVP resumes, so closing always
-    // lands on the first word of the page actually on screen.
+    // Whichever page is showing decides where the word reader resumes, so leaving
+    // always lands on the first word of the page actually on screen.
     val currentWord: () -> Int = {
         pages.getOrNull(pagerState.currentPage)?.first ?: initialWordIndex
     }
-    val close: () -> Unit = { onClose(currentWord()) }
+    val exit: () -> Unit = { onExit(currentWord()) }
+    val fastRead: () -> Unit = { onFastRead(currentWord()) }
+
+    // Chrome asked for and then left alone goes away again. Without this it stays over the
+    // first line of every page you turn until you remember to tap it off.
+    LaunchedEffect(showChrome) {
+        if (showChrome) {
+            delay(CHROME_VISIBLE_MS)
+            showChrome = false
+        }
+    }
 
     Dialog(
-        onDismissRequest = close,
+        onDismissRequest = exit,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         // A Dialog is its own window, so it has to pick the wheel up itself - the
@@ -232,7 +266,7 @@ fun EreaderScreen(
 
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = LightThemeTokens.colors.background,
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val density = LocalDensity.current
@@ -311,7 +345,10 @@ fun EreaderScreen(
                     }
 
                     if (built.isEmpty()) {
-                        onClose(anchor)
+                        // Nothing to page through. Falling back to the word reader is better
+                        // than throwing the reader out to the shelf: there is still text, it
+                        // just could not be laid out into pages at this size.
+                        onFastRead(anchor)
                         return@LaunchedEffect
                     }
                     PageCache.put(cacheKey, built)
@@ -354,7 +391,7 @@ fun EreaderScreen(
                                     )
                                 },
                                 style = bodyStyle,
-                                color = MaterialTheme.colorScheme.onBackground,
+                                color = LightThemeTokens.colors.content,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(
@@ -369,26 +406,53 @@ fun EreaderScreen(
                 }
 
                 EreaderChrome(
+                    title = title,
                     pageNumber = if (pages.isEmpty()) 0 else pagerState.currentPage + 1,
                     pageCount = pages.size,
-                    showClose = showChrome,
-                    onClose = close,
+                    showBar = showChrome,
+                    onExit = exit,
+                    onFastRead = fastRead,
                 )
             }
         }
     }
 }
 
+/**
+ * Laying the book out into pages, the first time.
+ *
+ * A percentage and a rule that fills, not a spinning circle: a Material indicator draws an
+ * animating grey arc, which on an unlit OLED is the brightest thing on the screen and says less
+ * than the number does.
+ */
 @Composable
 private fun PaginatingIndicator(progress: Float) {
+    val done = progress.coerceIn(0f, 1f)
+    val colors = LightThemeTokens.colors
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Box(contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(progress = { progress.coerceIn(0f, 1f) })
-            Text(
-                "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = lightInset()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            LightText("Laying out pages", LightTextVariant.Detail, lighten = true)
+            Spacer(Modifier.height(8f.designVerticalPxToDp()))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(3f.designVerticalPxToDp())
+                    .background(colors.rule),
+            ) {
+                if (done > 0f) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(done)
+                            .background(colors.content),
+                    )
+                }
+            }
+            Spacer(Modifier.height(8f.designVerticalPxToDp()))
+            LightText("${(done * 100).toInt()}%", LightTextVariant.Superfine, lighten = true)
         }
     }
 }
@@ -539,39 +603,62 @@ internal fun buildRangeText(
     }
 }
 
+/**
+ * The page view's own chrome: a page number that is always there, and a top bar that is not.
+ *
+ * The bar is the LightOS ActionBar shape — back on the left, title in the middle, one action on
+ * the right — and the action is FASTREAD, which is the whole reason the word reader is still in
+ * this app. Opaque rather than translucent, because the text runs right up under it: the page no
+ * longer reserves a permanent gap for a bar that is visible for four seconds at a time.
+ */
 @Composable
 private fun EreaderChrome(
+    title: String,
     pageNumber: Int,
     pageCount: Int,
-    showClose: Boolean,
-    onClose: () -> Unit,
+    showBar: Boolean,
+    onExit: () -> Unit,
+    onFastRead: () -> Unit,
 ) {
-    val lp = LocalIsLightPhone.current
+    val colors = LightThemeTokens.colors
     Box(modifier = Modifier.fillMaxSize()) {
-        if (showClose) {
-            // Opaque, because the text now runs right up under it: the page no
-            // longer keeps a permanent gap at the top for a button that is only
-            // visible for a moment.
-            IconButton(
-                onClick = onClose,
+        if (showBar) {
+            Column(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 8.dp, start = 8.dp)
-                    .background(MaterialTheme.colorScheme.background, CircleShape),
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .background(colors.background)
+                    .statusBarsPadding(),
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Close ereader")
+                // No centred title in the bar itself: FASTREAD is set in the Button variant,
+                // tracked out 15%, and on a 411dp screen it and a title would collide. The
+                // title goes on its own line underneath, where it has the whole width.
+                LightTopBar(
+                    left = LightBarItem.Icon(icon = LightIcons.Back, onClick = onExit),
+                    right = LightBarItem.Text(text = "FASTREAD", onClick = onFastRead),
+                )
+                LightText(
+                    text = title,
+                    variant = LightTextVariant.Superfine,
+                    lighten = true,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = lightInset())
+                        .padding(bottom = 6f.designVerticalPxToDp()),
+                )
+                LightRule()
             }
         }
         if (pageCount > 0) {
-            Text(
-                "$pageNumber / $pageCount",
+            LightText(
+                text = "$pageNumber / $pageCount",
+                variant = LightTextVariant.Superfine,
+                lighten = true,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 20.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(
-                    alpha = if (lp) LpContrast.floor(0.7f, 0.85f) else 0.7f,
-                ),
+                    .padding(bottom = 14f.designVerticalPxToDp()),
             )
         }
     }

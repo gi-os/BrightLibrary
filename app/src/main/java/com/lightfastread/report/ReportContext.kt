@@ -11,9 +11,15 @@ package com.lightfastread.report
  */
 object ReportApp {
     /** How the app calls itself in an issue title and in "X could not …". */
-    const val NAME = "LightFastread"
+    const val NAME = "LightBooks"
 
-    /** The label the triage skill routes on. One per app, matching the light-reports convention. */
+    /**
+     * The label the triage skill routes on. One per app, matching the light-reports convention.
+     *
+     * Deliberately still `fastread` after the rename to LightBooks: the triage skill's routing
+     * table and every issue already filed use it, and a new label would orphan both. The app name
+     * above is what a human reads in the issue title.
+     */
     const val LABEL = "fastread"
 }
 

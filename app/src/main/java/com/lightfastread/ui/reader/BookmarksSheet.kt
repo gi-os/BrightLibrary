@@ -1,31 +1,30 @@
 package com.lightfastread.ui.reader
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.lightfastread.data.Chapter
 import com.lightfastread.hw.WheelScroll
+import com.lightfastread.ui.light.LightBarItem
+import com.lightfastread.ui.light.LightIcon
+import com.lightfastread.ui.light.LightIcons
+import com.lightfastread.ui.light.LightRule
+import com.lightfastread.ui.light.LightText
+import com.lightfastread.ui.light.LightTextVariant
+import com.lightfastread.ui.light.designVerticalPxToDp
+import com.lightfastread.ui.light.gridUnitsAsDp
+import com.lightfastread.ui.light.lightClickable
+import com.lightfastread.ui.light.lightInset
 
 @Composable
 fun BookmarksSheet(
@@ -37,83 +36,98 @@ fun BookmarksSheet(
     onDismiss: () -> Unit,
 ) {
     if (bookmarks.isEmpty()) {
-        CustomBottomSheet(onDismiss = onDismiss) {
-            Text(
-                "Bookmarks",
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                "No bookmarks yet. Tap the bookmark icon to save the current word.",
+        CustomBottomSheet(
+            onDismiss = onDismiss,
+            actions = listOf(LightBarItem.Text(text = "CLOSE", onClick = onDismiss)),
+        ) {
+            SheetTitleRow("Bookmarks")
+            LightText(
+                text = "No bookmarks yet. Tap the bookmark icon to save the current word.",
+                variant = LightTextVariant.Copy,
+                lighten = true,
+                align = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    .padding(horizontal = lightInset(), vertical = 16f.designVerticalPxToDp()),
             )
-            Spacer(Modifier.height(16.dp))
         }
         return
     }
     val listState = rememberLazyListState()
     WheelScroll(listState)
-    CustomBottomSheet(onDismiss = onDismiss) {
-        Text(
-            "Bookmarks",
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.titleMedium,
-        )
+    CustomBottomSheet(
+        onDismiss = onDismiss,
+        actions = listOf(LightBarItem.Text(text = "CLOSE", onClick = onDismiss)),
+    ) {
+        SheetTitleRow("Bookmarks")
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth(),
+            // See ChapterListSheet: fill = false keeps a two-bookmark sheet short.
+            modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
         ) {
             items(bookmarks, key = { it }) { wordIndex ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPick(wordIndex) },
-                    color = MaterialTheme.colorScheme.surface,
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 24.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
-                        ) {
-                            val chapter = chapterFor(chapters, wordIndex)
-                            if (chapter != null) {
-                                Text(
-                                    chapter.title,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            Text(
-                                contextPreview(words, wordIndex),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        IconButton(
-                            onClick = { onDelete(wordIndex) },
-                            modifier = Modifier.size(40.dp).padding(end = 8.dp),
-                        ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remove bookmark",
-                            )
-                        }
-                    }
-                }
+                BookmarkRow(
+                    preview = contextPreview(words, wordIndex),
+                    chapterTitle = chapterFor(chapters, wordIndex)?.title,
+                    onPick = { onPick(wordIndex) },
+                    onDelete = { onDelete(wordIndex) },
+                )
             }
         }
-        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun BookmarkRow(
+    preview: String,
+    chapterTitle: String?,
+    onPick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .lightClickable(onClick = onPick)
+                    .padding(start = lightInset(), end = 0.5f.gridUnitsAsDp())
+                    .padding(vertical = 10f.designVerticalPxToDp()),
+            ) {
+                // The words are what identify a bookmark, so they take the Copy line and the
+                // chapter follows as the lightened second line rather than heading the row.
+                LightText(
+                    text = preview,
+                    variant = LightTextVariant.Copy,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (chapterTitle != null) {
+                    LightText(
+                        text = chapterTitle,
+                        variant = LightTextVariant.Detail,
+                        lighten = true,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .lightClickable(onClick = onDelete)
+                    .padding(horizontal = lightInset(), vertical = 10f.designVerticalPxToDp()),
+                contentAlignment = Alignment.Center,
+            ) {
+                LightIcon(
+                    icon = LightIcons.Trash,
+                    size = 1.5f,
+                    contentDescription = "Remove bookmark",
+                )
+            }
+        }
+        LightRule()
     }
 }
 

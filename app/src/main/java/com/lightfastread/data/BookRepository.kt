@@ -93,8 +93,28 @@ class BookRepository private constructor(private val appContext: Context) {
 
     fun deleteBook(book: Book) {
         textFile(book).delete()
+        Covers.delete(appContext, book)
         books.removeAll { it.id == book.id }
         persist()
+    }
+
+    /**
+     * Attach cover art to a book that is already on the shelf.
+     *
+     * Separate from [addBook] because the Open Library fallback happens after the import — the
+     * book should appear on the shelf the moment its text is parsed, not after a network round
+     * trip that may never come back.
+     */
+    fun setCover(id: String, bytes: ByteArray): Boolean {
+        val idx = books.indexOfFirst { it.id == id }
+        if (idx < 0) return false
+        val stored = Covers.store(appContext, id, bytes) ?: return false
+        books[idx] = books[idx].copy(
+            coverFileName = stored,
+            coverUpdatedAtMs = System.currentTimeMillis(),
+        )
+        persist()
+        return true
     }
 
     fun getBook(id: String): Book? = books.firstOrNull { it.id == id }

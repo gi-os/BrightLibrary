@@ -8,6 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.lightfastread.data.ThemeMode
+import com.lightfastread.ui.light.LightThemeColors
+import com.lightfastread.ui.light.LocalLightColors
+import com.lightfastread.ui.light.LocalLightTypography
+import com.lightfastread.ui.light.rememberLightTypography
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
@@ -138,7 +142,16 @@ fun FastReadTheme(
         else -> LightColorScheme
     }
 
-    CompositionLocalProvider(LocalIsLightPhone provides isLightPhone) {
+    // The Light SDK tokens are provided in every mode, not just LightPhone: the grid and the
+    // named type scale are the app's typography now, and a build running the upstream grey
+    // themes should still be laid out the same way. Only the two ends of the ramp swap.
+    val lightColors = if (isDark) LightThemeColors.Dark else LightThemeColors.OnWhite
+
+    CompositionLocalProvider(
+        LocalIsLightPhone provides isLightPhone,
+        LocalLightColors provides lightColors,
+        LocalLightTypography provides rememberLightTypography(),
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

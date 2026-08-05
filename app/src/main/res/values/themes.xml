@@ -7,7 +7,7 @@
       which on the Light Phone III's black-and-white OLED is a full-brightness
       strobe every single launch. Black instead.
     -->
-    <style name="Theme.FastRead" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.LightBooks" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:colorBackground">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

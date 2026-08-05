@@ -121,7 +121,51 @@ object EpubParser {
             format = "EPUB",
             text = sb.toString().trim(),
             chapters = finalChapters,
+            coverImage = findCover(entries, opf, opfDir, manifest),
         )
+    }
+
+    /**
+     * The cover image, by the three ways an EPUB can name one.
+     *
+     * EPUB 3 marks it in the manifest with `properties="cover-image"`. EPUB 2 has no such
+     * property and instead points at a manifest id from `<meta name="cover" content="…"/>`.
+     * Files that do neither — and there are many — usually still have an image whose name says
+     * what it is, so the last resort is a filename match, restricted to real image extensions so
+     * a stylesheet called `cover.css` can't win.
+     */
+    private fun findCover(
+        entries: Map<String, ByteArray>,
+        opf: String,
+        opfDir: String,
+        manifest: Map<String, ManifestItem>,
+    ): ByteArray? {
+        fun read(href: String): ByteArray? =
+            entries[resolveRelativePath(opfDir, href)]
+                ?: entries[normalizePath(href)]
+                ?: entries[href]
+
+        manifest.values.firstOrNull { it.properties?.contains("cover-image") == true }
+            ?.let { item -> read(item.href)?.let { return it } }
+
+        Regex("<meta\\b[^>]*name=\"cover\"[^>]*content=\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+            .find(opf)?.groupValues?.get(1)
+            ?.let { id -> manifest[id]?.href?.let { read(it) }?.let { return it } }
+
+        // Some producers write the attributes the other way round.
+        Regex("<meta\\b[^>]*content=\"([^\"]+)\"[^>]*name=\"cover\"", RegexOption.IGNORE_CASE)
+            .find(opf)?.groupValues?.get(1)
+            ?.let { id -> manifest[id]?.href?.let { read(it) }?.let { return it } }
+
+        val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif")
+        return entries.entries
+            .filter { entry ->
+                val key = entry.key.lowercase()
+                key.contains("cover") && imageExtensions.any { key.endsWith(it) }
+            }
+            // Shortest path wins: `cover.jpg` beats `images/cover-thumbnail-small.jpg`.
+            .minByOrNull { it.key.length }
+            ?.value
     }
 
     private fun recordOffset(
