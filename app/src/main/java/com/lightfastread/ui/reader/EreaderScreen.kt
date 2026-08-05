@@ -51,8 +51,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.data.TitleStyle
-import com.lightfastread.hw.WheelInDialog
-import com.lightfastread.hw.WheelSteps
+import com.gios.light.common.hw.WheelInDialog
+import com.gios.light.common.hw.WheelSteps
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightIcons
 import com.lightfastread.ui.light.LightRule
@@ -113,8 +113,8 @@ private const val PAGE_TURN_DRAG_FRACTION = 0.7f
  */
 private const val NOTCHES_PER_PAGE = 3
 
-/** A turn abandoned for this long starts counting again, matching hw/Wheel.kt's
- *  own idle window, so a stray brush never banks toward a later real turn. */
+/** A turn abandoned for this long starts counting again, matching light-common's own idle
+ *  window, so a stray brush never banks toward a later real turn. */
 private const val WHEEL_IDLE_MS = 1_500L
 
 /**
@@ -238,7 +238,13 @@ fun EreaderScreen(
         var wheelTarget by remember { mutableStateOf<Int?>(null) }
         var notchesTowardTurn by remember { mutableIntStateOf(0) }
         var lastNotchAtMs by remember { mutableLongStateOf(0L) }
-        WheelSteps { step ->
+        //
+        // `notchesPerStep = 1, minIntervalMs = 0` because the counting above is this screen's
+        // own: light-common's WheelSteps banks notches and rate-limits them for row-at-a-time
+        // focus movement, and layering that on top of NOTCHES_PER_PAGE would multiply the two
+        // thresholds together and make a page turn arrive late. One callback per notch, as
+        // fast as they come, is what this code was written against.
+        WheelSteps(notchesPerStep = 1, minIntervalMs = 0) { step ->
             if (pages.isNotEmpty()) {
                 val now = System.currentTimeMillis()
                 // Reversing, or picking the wheel up again after a pause, starts

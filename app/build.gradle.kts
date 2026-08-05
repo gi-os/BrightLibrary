@@ -11,7 +11,7 @@ plugins {
 // Single source of truth for the version. The CI workflow greps
 // `baseVersionName` out of this file to name the APK artifacts, so keep it as a
 // plain string literal.
-val baseVersionName = "1.6.0-light.1"
+val baseVersionName = "1.7.0-light.1"
 val ciRunNumber: Int? = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -93,7 +93,8 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -114,6 +115,14 @@ android {
 }
 
 dependencies {
+
+    // The shared Light library: the wheel, the hardware keys, shake-to-report and the
+    // LightSync backup provider. MIT, consumed by this GPL-3.0 fork — which is fine in that
+    // direction; nothing from this repo goes back the other way.
+    implementation("com.gios:light-common:1.2.0")
+    // What makes the AAR's baseline profile actually get applied: below API 31 nothing on the
+    // device reads a profile on its own, so without this the profile ships and is ignored.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

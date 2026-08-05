@@ -10,6 +10,12 @@ on:
     branches-ignore: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  # light-common is pulled from GitHub Packages, which needs an authenticated read
+  # even though the package is public.
+  packages: read
+
 concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
@@ -28,9 +34,17 @@ jobs:
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
+        env:
+          GPR_USER: ${{ secrets.GPR_USER }}
+          GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile
         run: ./gradlew :app:assembleDebug --stacktrace
+        env:
+          GPR_USER: ${{ secrets.GPR_USER }}
+          GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

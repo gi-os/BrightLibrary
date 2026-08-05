@@ -31,8 +31,8 @@ import androidx.compose.ui.unit.dp
 import com.lightfastread.data.Fonts
 import com.lightfastread.data.SettingsRepository
 import com.lightfastread.data.SwipeMode
-import com.lightfastread.hw.WheelInDialog
-import com.lightfastread.hw.WheelScroll
+import com.gios.light.common.hw.WheelInDialog
+import com.gios.light.common.hw.WheelScroll
 import com.lightfastread.ui.light.LightIcon
 import com.lightfastread.ui.light.LightIcons
 import com.lightfastread.ui.light.LightRule

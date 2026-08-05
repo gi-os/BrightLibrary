@@ -10,6 +10,9 @@ on:
 
 permissions:
   contents: write
+  # light-common is pulled from GitHub Packages, which needs an authenticated read
+  # even though the package is public.
+  packages: read
 
 # A newer push supersedes an in-flight one; no point building a commit that is
 # already stale.
@@ -76,6 +79,9 @@ jobs:
           # Shake-to-report posts issues with this. Absent, the build still works —
           # reports queue on the phone until a build that has the key installs over it.
           REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
+          GPR_USER: ${{ secrets.GPR_USER }}
+          GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # The signing certificate must never change, or every already-installed
       # copy becomes un-updatable. Pin its fingerprint in the repo and fail loudly

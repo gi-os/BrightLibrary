@@ -38,7 +38,7 @@ import com.lightfastread.data.Book
 import com.lightfastread.data.BookRepository
 import com.lightfastread.data.Covers
 import com.lightfastread.data.SettingsRepository
-import com.lightfastread.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import com.lightfastread.parser.BookParser
 import com.lightfastread.ui.light.ColourEffect
 import com.lightfastread.ui.light.LightBarItem

@@ -16,17 +16,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lightfastread.data.SettingsRepository
 import com.lightfastread.data.ThemeMode
-import com.lightfastread.hw.LightKey
-import com.lightfastread.hw.LightKeys
-import com.lightfastread.hw.LocalWheelBus
-import com.lightfastread.hw.WheelBus
+import com.gios.light.common.hw.LightKey
+import com.gios.light.common.hw.LightKeys
+import com.gios.light.common.hw.LocalWheelBus
+import com.gios.light.common.hw.WheelBus
 import com.lightfastread.ui.home.HomeScreen
 import com.lightfastread.ui.light.ColorMode
 import com.lightfastread.ui.reader.ReaderScreen
 import com.lightfastread.ui.settings.SettingsScreen
 import com.lightfastread.ui.theme.FastReadTheme
-import com.lightfastread.report.CrashLog
-import com.lightfastread.report.ReportOverlay
+import com.gios.light.common.report.LightReport
+import com.gios.light.common.report.ReportOverlay
 
 class MainActivity : ComponentActivity() {
 
@@ -73,9 +73,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // First thing, before anything else can throw: the handler chains onto whatever is
-        // already installed and only writes a file, so it is safe this early.
-        CrashLog.install(this)
+        // First thing, before anything else can throw. This is the whole of the app's
+        // reporting setup: it names the app for issue titles, hands over the key, and arms the
+        // crash handler, which chains onto whatever is already installed and only writes a
+        // file — safe this early.
+        //
+        // `label` stays `fastread` after the rename to LightBooks: the triage skill routes on
+        // it and every issue already filed carries it, so a new label would orphan both.
+        LightReport.install(
+            context = this,
+            appName = "LightBooks",
+            label = "fastread",
+            token = BuildConfig.REPORT_TOKEN,
+        )
         // Transparent bars over a black window. LightOS draws no persistent
         // system bars, but on a normal Android device or the LPIII emulator this
         // keeps the chrome from punching two grey slabs into a black screen.
@@ -98,7 +108,7 @@ class MainActivity : ComponentActivity() {
             }
             FastReadTheme(themeMode = settings.themeMode) {
                 // Every screen below can reach the wheel; the sheets reach it too,
-                // through their own windows. See hw/Wheel.kt.
+                // through their own windows. See light-common's hw/Wheel.kt.
                 CompositionLocalProvider(LocalWheelBus provides wheel) {
                     AppNav()
                 }

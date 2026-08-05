@@ -42,6 +42,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!--
+            LightSync finds apps by provider authority suffix, so this entry is the whole
+            registration. exported=true is required for a cross-app ContentProvider and is not
+            the trust boundary: LightSyncBackup rejects any caller that is not LightSync by
+            package and by signing certificate, checked on every call.
+        -->
+        <provider
+            android:name=".backup.Backup"
+            android:authorities="${applicationId}.lightsync.backup"
+            android:exported="true" />
     </application>
 
 </manifest>

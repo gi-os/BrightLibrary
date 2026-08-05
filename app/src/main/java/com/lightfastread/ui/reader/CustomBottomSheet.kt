@@ -26,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.lightfastread.hw.WheelInDialog
+import com.gios.light.common.hw.WheelInDialog
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightBottomBar
 import com.lightfastread.ui.light.LightRule

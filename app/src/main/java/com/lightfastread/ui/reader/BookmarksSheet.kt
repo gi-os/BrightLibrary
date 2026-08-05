@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.lightfastread.data.Chapter
-import com.lightfastread.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightIcon
 import com.lightfastread.ui.light.LightIcons
