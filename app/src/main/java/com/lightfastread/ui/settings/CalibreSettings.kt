@@ -24,6 +24,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.calibre.CalibreClient
 import com.lightfastread.calibre.ReadingState
 import com.lightfastread.data.CalibreConfig
+import com.gios.light.common.hw.WheelInDialog
 import com.gios.light.common.hw.WheelScroll
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightBottomBar
@@ -82,6 +83,10 @@ fun CalibreSettings(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        // A Dialog is its own window, so the activity's key dispatch never sees the wheel while this
+        // is up — and this is the longest new page in the app. Without this the wheel is simply dead
+        // here and the only way down the page is a drag.
+        WheelInDialog()
         Column(
             modifier = Modifier
                 .fillMaxSize()

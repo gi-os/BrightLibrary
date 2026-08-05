@@ -1,3 +1,58 @@
+## LightBooks v1.8 — Your Calibre library, on the phone
+
+**LIBRARY on the shelf's bottom bar. Browse the Calibre server, tap a book, read it — and the server
+finds out where you got to.**
+
+### Browsing
+
+Every Calibre server already publishes its library as OPDS: calibre-web, `calibre-server` and COPS all
+answer at `/opds` with the same Atom feed. So there is nothing to install on the server side. Put the
+address in Settings -> Calibre, with a username and password if it asks for one, and LIBRARY walks the
+catalogue the way the server lays it out — recently added, by author, by series — a list of rows with a
+cover thumbnail, the author underneath and the format on the right.
+
+Tap a book and it downloads straight onto the shelf. EPUB is preferred over the Kindle formats because
+the EPUB parser keeps chapter structure; a book in a format this app cannot read says so in the row
+rather than failing after the download. SEARCH asks the server, not the shelf, and uses the feed's own
+OpenSearch template when it advertises one.
+
+Two smaller things fall out of this. **Covers come from Calibre**, which means a book downloaded here
+never needs an Open Library lookup — if you fixed the cover in Calibre, that is the cover you get. And
+**the title and author come from Calibre too**, in preference to whatever is inside the file, because a
+library has been curated and an EPUB's own metadata frequently has not.
+
+A book already on the shelf is marked ON SHELF, so a long catalogue does not turn into guesswork about
+what you already have.
+
+### Reading progress
+
+Turned on by default, but it needs one thing on the server: calibre-web's **Kobo sync** (Admin ->
+Basic Configuration -> Enable Kobo sync), then paste the sync URL from your user page into Settings ->
+Calibre. There is no progress field in OPDS, so this rides the API a real Kobo e-reader uses.
+
+What it does: pushes your position while you read — throttled to at most once a minute, and again when
+you leave the app — and when you download a book it picks up where another device left off. Your own
+bookmarks carry the exact word index, so a resume is not rounded through a percentage; a bookmark from
+some other reader is all a percentage can say, and is treated as such.
+
+It is built to survive being offline, which is most of the day for a phone. Each book remembers what
+the server was last told, and anything that has drifted goes out on the next sync — nothing queues,
+nothing is lost, and a failed push is never an error on screen. SYNC NOW in Settings if you want to
+force it.
+
+### Worth knowing
+
+- The password and the Kobo token are stored unencrypted in the app's own settings, and the token *is*
+  the authentication for that endpoint. This is pointed at a LAN server on purpose.
+- Cleartext HTTP is now permitted, because nobody puts a certificate on `192.168.x.x` and Android has
+  blocked it by default since API 28. Everything else the app talks to is still https.
+- The shelf's bottom bar is now at the SDK's hard limit of three text items (ADD / LIBRARY /
+  SETTINGS).
+- Text entry — the server address, a search — needs a system keyboard, which on LightOS means
+  LightKeyboard.
+
+---
+
 ## light-common 1.2.1 — the baseline profile arrives
 
 A one-line dependency bump, and the only reason it needs a release of its own is that the last

@@ -1,5 +1,6 @@
 package com.lightfastread.ui.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -127,6 +128,10 @@ fun LibraryScreen(onBack: () -> Unit) {
             onBack()
         }
     }
+
+    // Hardware back has to mean the same thing the Back icon does, or four levels into a catalogue it
+    // drops you out of the app entirely.
+    BackHandler(onBack = up)
 
     val open: (OpdsEntry) -> Unit = { entry ->
         val href = entry.feedHref
@@ -277,16 +282,16 @@ fun LibraryScreen(onBack: () -> Unit) {
                     scope.launch {
                         loading = true
                         error = null
-                        val result = withContext(Dispatchers.IO) {
-                            runCatching { CalibreClient(config).search(query) }
+                        // Resolve the URL first and then load it like any other feed, so the trail
+                        // holds something RELOAD and paging can actually re-fetch.
+                        val url = withContext(Dispatchers.IO) {
+                            runCatching { CalibreClient(config).searchUrl(query) }
                         }
                         loading = false
-                        result.onSuccess {
-                            feed = it
+                        url.onSuccess {
                             // A search result is a level of its own, so backing out of it returns to
                             // wherever the search was started from rather than to the root.
-                            trail.add("search:$query")
-                            listState.scrollToItem(0)
+                            load(it, true)
                         }.onFailure { error = it.message ?: "Search failed." }
                     }
                 }

@@ -67,8 +67,9 @@ import java.util.UUID
  * and type scale; the covers are the only thing with hues in them, which is exactly how LightOS
  * treats photographs.
  *
- * Settings and Add live in a [LightBottomBar] rather than in a floating action button and a top
- * bar icon. Two text items, well inside the SDK's limit of three when any item is text.
+ * Add, Library and Settings live in a [LightBottomBar] rather than in a floating action button and a
+ * top bar icon. Three text items, which is exactly the SDK's limit once any item is text — so a
+ * fourth thing to do from the shelf has to become an icon or move somewhere else.
  */
 @Composable
 fun HomeScreen(

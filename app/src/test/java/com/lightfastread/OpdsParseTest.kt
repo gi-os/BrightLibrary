@@ -68,6 +68,14 @@ class OpdsParseTest {
     }
 
     @Test
+    fun `an octet-stream acquisition falls back to the URL for its format`() {
+        val book = Opds.parse(OCTET_FEED, "http://basilnet:8080/opds").entries.single()
+        // Plenty of servers label every download `application/octet-stream`, in which case the file
+        // name is the only evidence of what the bytes are.
+        assertEquals("epub", book.bestDownload()!!.second)
+    }
+
+    @Test
     fun `search template comes out of the OpenSearch description`() {
         val template = Opds.parseSearchTemplate(OSD, "http://192.168.68.59:8768/opds/osd")
         assertEquals("http://192.168.68.59:8768/opds/search/{searchTerms}", template)
@@ -172,6 +180,17 @@ class OpdsParseTest {
                 <title>A Mathematical Theory of Communication</title>
                 <id>urn:uuid:99887766-5544-3322-1100-aabbccddeeff</id>
                 <link rel="http://opds-spec.org/acquisition" href="/get/PDF/9/library" type="application/pdf"/>
+              </entry>
+            </feed>
+        """.trimIndent().trim()
+
+        val OCTET_FEED = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <entry>
+                <title>Dune Messiah</title>
+                <id>urn:uuid:11223344-5566-7788-99aa-bbccddeeff00</id>
+                <link rel="http://opds-spec.org/acquisition" href="/files/dune_messiah.epub" type="application/octet-stream"/>
               </entry>
             </feed>
         """.trimIndent().trim()

@@ -16,11 +16,22 @@ rename updates in place — no reinstall, no lost books, and an existing Obtaini
 working without being re-added. Every source package is still `com.lightfastread` too; the
 namespace is load-bearing for the R class and the provider authorities.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.6.0-light.1`.
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.8.0-light.1`.
 CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
 see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ### What's working today
+
+- **Your Calibre library, over OPDS.** LIBRARY on the shelf's bottom bar browses a Calibre server —
+  calibre-web, `calibre-server` or COPS, they all publish the same catalogue — and downloads a book
+  straight onto the shelf. Covers, titles and authors come from Calibre rather than from the file, so a
+  book from the library never needs an Open Library lookup. SEARCH asks the server. Address and
+  credentials in Settings -> Calibre.
+- **Reading progress syncs back to calibre-web**, over the Kobo sync API (there is no progress field in
+  OPDS). Push while reading and on leaving the app, pull on download so a book opens where another
+  device left it. Each book records what the server was last told, so a phone that spends the day off
+  the network catches up rather than losing anything. Needs Kobo sync enabled on the server and its
+  sync URL pasted into Settings.
 
 - **A shelf, not a list.** Two covers to a row, progress as a hairline under each. Cover
   art is read out of the EPUB or MOBI itself, then looked up on Open Library, and failing

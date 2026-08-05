@@ -542,10 +542,6 @@ private fun ToggleRow(
 }
 
 /**
- * One option out of a set. The chosen one is bracketed rather than tinted or ticked: the panel is
- * matte greyscale, and a change of shade alone does not read at arm's length.
- */
-/**
  * A row that opens something else, or does something once.
  *
  * Distinct from [ChoiceRow] because a choice is a state — it brackets itself when it is the one in
@@ -573,6 +569,10 @@ private fun NavRow(label: String, caption: String?, onClick: () -> Unit) {
     }
 }
 
+/**
+ * One option out of a set. The chosen one is bracketed rather than tinted or ticked: the panel is
+ * matte greyscale, and a change of shade alone does not read at arm's length.
+ */
 @Composable
 private fun ChoiceRow(
     label: String,

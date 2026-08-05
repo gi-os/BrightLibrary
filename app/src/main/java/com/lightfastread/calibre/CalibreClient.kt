@@ -50,15 +50,23 @@ class CalibreClient(private val config: CalibreConfig) {
      * does not — older COPS, a proxy that strips the link — `/opds/search/<terms>` is the path both
      * calibre-server and calibre-web use anyway, so guessing it is better than refusing to search.
      */
-    fun search(query: String): OpdsFeed {
+    fun search(query: String): OpdsFeed = feed(searchUrl(query))
+
+    /**
+     * The URL a search resolves to, separately from running it.
+     *
+     * Exposed because the LIBRARY screen keeps a trail of feed URLs and RELOAD re-fetches the last
+     * one. A search result has to be a real URL in that trail — a placeholder would come back as
+     * "not a URL this phone can open" the first time somebody reloaded a search.
+     */
+    fun searchUrl(query: String): String {
         val template = searchTemplate ?: resolveSearchTemplate().also { searchTemplate = it }
         val terms = URLEncoder.encode(query.trim(), "UTF-8")
-        val url = if (template != null) {
+        return if (template != null) {
             SEARCH_TERM_PATTERN.replace(template) { terms }
         } else {
             "${catalogUrl(config.baseUrl).trimEnd('/')}/search/$terms"
         }
-        return feed(url)
     }
 
     /**

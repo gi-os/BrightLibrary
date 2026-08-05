@@ -26,8 +26,8 @@ import androidx.compose.ui.unit.Dp
  * take at most a left item, a centre and a right item. Text items are set in the Button
  * variant, which is tracked out wide and reads as a label rather than as prose.
  *
- * The SDK's own limit is five icon items, but **three if any item is text**. The shelf has
- * two, so it stays well inside that.
+ * The SDK's own limit is five icon items, but **three if any item is text**. The shelf sits at
+ * exactly three (ADD / LIBRARY / SETTINGS), so anything else it has to offer has to be an icon.
  */
 
 private const val TOPBAR_HEIGHT_UNITS = 3f
