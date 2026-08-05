@@ -20,7 +20,9 @@ import com.gios.light.common.hw.LightKey
 import com.gios.light.common.hw.LightKeys
 import com.gios.light.common.hw.LocalWheelBus
 import com.gios.light.common.hw.WheelBus
+import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.ui.home.HomeScreen
+import com.lightfastread.ui.library.LibraryScreen
 import com.lightfastread.ui.light.ColorMode
 import com.lightfastread.ui.reader.ReaderScreen
 import com.lightfastread.ui.settings.SettingsScreen
@@ -69,6 +71,11 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         ColorMode.onAppHidden(this)
+        // Leaving the app is the reliable moment to tell Calibre where you got to: the position has
+        // stopped moving, and the throttle that keeps the reader from pushing per word means the last
+        // few minutes of reading are otherwise still unsent. Fire-and-forget on its own scope, so it
+        // survives this Activity going away.
+        ProgressSync.flush(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -129,10 +136,14 @@ private fun AppNav() {
             HomeScreen(
                 onOpenBook = { book -> navController.navigate("reader/${book.id}") },
                 onOpenSettings = { navController.navigate("settings") },
+                onOpenLibrary = { navController.navigate("library") },
             )
         }
         composable("settings") {
             SettingsScreen(onBack = { navController.popBackStack() })
+        }
+        composable("library") {
+            LibraryScreen(onBack = { navController.popBackStack() })
         }
         composable("reader/{bookId}") { backStackEntry ->
             val bookId = backStackEntry.arguments?.getString("bookId").orEmpty()

@@ -31,13 +31,27 @@ data class ParsedBook(
 object BookParser {
     fun parse(context: Context, uri: Uri): ParsedBook {
         val name = displayName(context, uri) ?: "Unknown"
-        val ext = name.substringAfterLast('.', "").lowercase()
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalStateException("Cannot open file")
+        return parseBytes(bytes, name)
+    }
 
+    /**
+     * Parse a book already in memory.
+     *
+     * Split out of [parse] for the Calibre download, which has the bytes and a format but never had
+     * a `Uri` — a download that had to be written to a temporary file and handed back through
+     * `ContentResolver` just to be read again would be two copies of a 40 MB EPUB for nothing.
+     *
+     * [name] is only used for its extension and as the fallback title, so a synthesised
+     * `"$title.$ext"` is a perfectly good thing to pass.
+     */
+    fun parseBytes(bytes: ByteArray, name: String): ParsedBook {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        val fallbackTitle = name.substringBeforeLast('.')
         return when (ext) {
-            "epub" -> EpubParser.parseBytes(bytes, fallbackTitle = name.substringBeforeLast('.'))
-            "mobi", "azw", "azw3" -> MobiParser.parseBytes(bytes, fallbackTitle = name.substringBeforeLast('.'))
+            "epub" -> EpubParser.parseBytes(bytes, fallbackTitle = fallbackTitle)
+            "mobi", "azw", "azw3" -> MobiParser.parseBytes(bytes, fallbackTitle = fallbackTitle)
             else -> throw IllegalArgumentException("Unsupported format: .$ext (use .epub or .mobi)")
         }
     }

@@ -10,6 +10,29 @@ enum class SwipeMode { Normal, Zone }
 enum class BionicMode { Off, MainOnly, ContextOnly, Both }
 enum class TitleStyle { Color, Underline, Both }
 
+/**
+ * Where the Calibre library is, and how to get into it.
+ *
+ * Two addresses rather than one because they are two different servers as far as the protocol is
+ * concerned: the catalogue is OPDS over basic auth, and reading progress is calibre-web's Kobo sync
+ * API, whose token in the URL *is* the authentication. Either can be set without the other — browse
+ * with no sync, or sync a library you fill from the phone's own storage.
+ *
+ * The password and the token are stored in the app's own SharedPreferences in plain text, which is
+ * the same protection every other setting gets. That is a deliberate limit on this feature: it is
+ * pointed at a LAN server, not at anything reachable from the internet.
+ */
+@Serializable
+data class CalibreConfig(
+    /** Anything a person might type: `192.168.68.59:8768`, a hostname, or a full OPDS URL. */
+    val baseUrl: String = "",
+    val username: String = "",
+    val password: String = "",
+    /** The Kobo sync URL calibre-web shows on the user's page, token and all. */
+    val koboUrl: String = "",
+    val syncProgress: Boolean = true,
+)
+
 @Serializable
 data class Settings(
     val minWpm: Int = 100,
@@ -54,4 +77,6 @@ data class Settings(
      * it the covers simply stay grey, so this defaults on.
      */
     val colorCovers: Boolean = true,
+    /** The Calibre server the LIBRARY screen browses. Empty until it is set. */
+    val calibre: CalibreConfig = CalibreConfig(),
 )

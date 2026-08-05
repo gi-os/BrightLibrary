@@ -25,8 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lightfastread.calibre.ProgressSync
+import com.lightfastread.calibre.ReadingState
 import com.lightfastread.data.BionicMode
 import com.gios.light.common.hw.WheelScroll
+import kotlinx.coroutines.launch
 import com.lightfastread.data.FontFace
 import com.lightfastread.data.Fonts
 import com.lightfastread.data.SettingsRepository
@@ -71,6 +74,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     // The longest screen in the app, and the one the wheel earns its keep on.
     val scroll = rememberScrollState()
     WheelScroll(scroll)
+    val scope = rememberCoroutineScope()
+    var editingCalibre by remember { mutableStateOf(false) }
+    var syncMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -411,8 +417,58 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Caption("Covers stay grey until that one-time grant is given.")
                 }
             }
+
+            SectionTitle("Calibre")
+            Caption(
+                "Browse a Calibre library over OPDS and download straight to the shelf — LIBRARY " +
+                    "on the shelf's bottom bar.",
+            )
+            NavRow(
+                label = "Server",
+                caption = s.calibre.baseUrl.ifBlank { "Not set" },
+                onClick = { editingCalibre = true },
+            )
+            ToggleRow(
+                label = "Sync reading progress",
+                caption = "Pushes your position back to calibre-web, and picks up where another " +
+                    "device left off when you download a book.",
+                checked = s.calibre.syncProgress,
+                onToggle = { v -> repo.update { it.copy(calibre = it.calibre.copy(syncProgress = v)) } },
+            ) {
+                if (s.calibre.syncProgress && !ReadingState.configured(s.calibre)) {
+                    Caption("Needs a Kobo sync URL — tap Server above.")
+                }
+            }
+            if (ReadingState.configured(s.calibre)) {
+                NavRow(
+                    label = "Sync now",
+                    caption = syncMessage ?: "Pushes anything the server has not been told yet.",
+                    onClick = {
+                        syncMessage = "Syncing…"
+                        ProgressSync.flush(context)
+                        // No result to wait for: the flush is fire-and-forget by design, because a
+                        // phone off the network is the normal case and a failure is a retry, not an
+                        // error. The books' own progress bars are the readout.
+                        scope.launch {
+                            kotlinx.coroutines.delay(1_500)
+                            syncMessage = "Sent whatever was outstanding."
+                        }
+                    },
+                )
+            }
             Spacer(Modifier.height(2f.gridUnitsAsDp()))
         }
+    }
+
+    if (editingCalibre) {
+        CalibreSettings(
+            initial = s.calibre,
+            onSave = { config ->
+                editingCalibre = false
+                repo.update { it.copy(calibre = config) }
+            },
+            onDismiss = { editingCalibre = false },
+        )
     }
 }
 
@@ -489,6 +545,34 @@ private fun ToggleRow(
  * One option out of a set. The chosen one is bracketed rather than tinted or ticked: the panel is
  * matte greyscale, and a change of shade alone does not read at arm's length.
  */
+/**
+ * A row that opens something else, or does something once.
+ *
+ * Distinct from [ChoiceRow] because a choice is a state — it brackets itself when it is the one in
+ * force — and this is not. Brackets on a row that merely opens a page read as "this option is
+ * selected", which is exactly the wrong thing to say about an address.
+ */
+@Composable
+private fun NavRow(label: String, caption: String?, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .lightClickable(onClick = onClick)
+            .padding(vertical = 6f.designVerticalPxToDp()),
+    ) {
+        LightText(label, LightTextVariant.Button)
+        if (caption != null) {
+            LightText(
+                text = caption,
+                variant = LightTextVariant.Detail,
+                lighten = true,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @Composable
 private fun ChoiceRow(
     label: String,

@@ -42,4 +42,22 @@ data class Book(
      * the shelf is opened.
      */
     val coverSearchedAtMs: Long = 0L,
+    /**
+     * The Calibre `uuid` this book came from, when it was downloaded from a Calibre server.
+     *
+     * The uuid rather than the numeric id: it is what calibre-web's Kobo sync endpoint is keyed on,
+     * it survives the library being moved or re-imported, and it is what an OPDS entry already
+     * carries in its `<id>` as `urn:uuid:…`. Null for a book imported from the phone's storage,
+     * which is also what marks a book as having nothing to sync.
+     */
+    val calibreUuid: String? = null,
+    /**
+     * The percentage the server was last told, or -1 if it has never been told anything.
+     *
+     * This is what makes the sync eventually consistent instead of best-effort. Reading happens on a
+     * phone that is often off the network, so a push that fails has to be retryable — and the only
+     * way to know a retry is needed is to record what the far end already knows. -1 rather than 0
+     * because "never pushed" and "pushed a position at the very start" are different states.
+     */
+    val calibreSyncedPercent: Int = -1,
 )

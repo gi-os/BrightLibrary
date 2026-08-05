@@ -74,6 +74,7 @@ import java.util.UUID
 fun HomeScreen(
     onOpenBook: (Book) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenLibrary: () -> Unit,
 ) {
     val context = LocalContext.current
     val repo = remember { BookRepository.get(context) }
@@ -268,6 +269,9 @@ fun HomeScreen(
                         )
                     },
                 ),
+                // Three text items is the SDK's hard limit once any item is text, so this bar is now
+                // full: ADD from storage, LIBRARY from the Calibre server, SETTINGS.
+                LightBarItem.Text(text = "LIBRARY", onClick = onOpenLibrary),
                 LightBarItem.Text(text = "SETTINGS", onClick = onOpenSettings),
             ),
             modifier = Modifier.navigationBarsPadding(),

@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <!--
-      Shake-to-report posts the issue to GitHub, and the shelf looks up missing cover art on
-      Open Library. Nothing else in this app is online.
+      Shake-to-report posts the issue to GitHub, the shelf looks up missing cover art on Open
+      Library, and the LIBRARY screen browses a Calibre server over OPDS.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -22,6 +22,13 @@
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <!--
+      android:usesCleartextTraffic below is for Calibre. A server on a home LAN is http on a high
+      port, and nobody puts a certificate on 192.168.x.x; Android has blocked cleartext by default
+      since API 28, which would make the LIBRARY screen fail with an unexplained connection error on
+      the one address it is most likely to be pointed at. Everything else the app talks to - GitHub,
+      Open Library - is https regardless of this flag.
+    -->
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -30,6 +37,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.LightBooks">
         <activity
             android:name=".MainActivity"

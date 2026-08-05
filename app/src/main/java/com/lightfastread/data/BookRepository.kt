@@ -3,6 +3,7 @@ package com.lightfastread.data
 import android.content.Context
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
+import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.parser.HtmlStripper
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -158,7 +159,27 @@ class BookRepository private constructor(private val appContext: Context) {
         if (current.currentWordIndex == wordIndex) return
         books[idx] = current.copy(currentWordIndex = wordIndex)
         persist()
+        // Fires on every word at reading speed, so it has to be cheap: [ProgressSync.onProgress] is
+        // a clock comparison and a return in all but one call a minute.
+        if (current.calibreUuid != null) ProgressSync.onProgress(appContext)
     }
+
+    /**
+     * Record what the Calibre server has been told.
+     *
+     * Written only after the server confirms it stored the position, because this is the *only* thing
+     * that knows a push is still owed — see [Book.calibreSyncedPercent].
+     */
+    fun markCalibreSynced(id: String, percent: Int) {
+        val idx = books.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        if (books[idx].calibreSyncedPercent == percent) return
+        books[idx] = books[idx].copy(calibreSyncedPercent = percent)
+        persist()
+    }
+
+    /** Whether a book from this Calibre uuid is already on the shelf. */
+    fun hasCalibreBook(uuid: String): Boolean = books.any { it.calibreUuid == uuid }
 
     fun toggleBookmark(id: String, wordIndex: Int): Boolean {
         val idx = books.indexOfFirst { it.id == id }
