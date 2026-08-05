@@ -46,6 +46,13 @@ Both parsers are regex-based and need nothing.
 Crash traces stay readable: line numbers and file names are kept on purpose, because a shaken
 report with an obfuscated stack is not a report.
 
+### Android 10 or newer
+
+The minimum Android version goes from 5.0 to 10. The shared library is built against 10 and
+uses APIs that do not exist below it, so pretending otherwise would only move the failure from
+build time to a crash on launch. The Light Phone III runs Android 14, so this changes nothing
+on the phone; it only drops an old spare device you might have been sideloading onto.
+
 ### If it does go wrong
 
 `applicationId` and the signing key are unchanged, so this updates in place over v1.6 and your

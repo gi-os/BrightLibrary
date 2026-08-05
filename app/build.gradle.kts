@@ -47,7 +47,12 @@ android {
 
     defaultConfig {
         applicationId = "com.lightfastread"
-        minSdk = 24
+        // Was 24, upstream FastRead's floor, kept so the fork still installed on an old test
+        // device. light-common is minSdk 29 and the manifest merger refuses to link below it —
+        // and overriding that would be a lie, since the library reaches for APIs (SystemFonts
+        // among them) that do not exist on 24. The phone this is built for is API 34, so 29 is
+        // the honest number.
+        minSdk = 29
         // LightOS ships Android 14 (API 34); the light-sdk emulator profile is
         // API 34 as well. Compiling against 36 is fine, but there is no reason
         // to opt into 35/36 behaviour changes the device will never see.
