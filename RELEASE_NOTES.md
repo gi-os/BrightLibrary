@@ -1,3 +1,15 @@
+## LightBooks v1.9.1 — A scanned code saves itself
+
+Scanning the setup code filled in the four fields and then, if you left the page without pressing
+SAVE, kept none of them. That looks exactly like being set up, so leaving is the natural thing to
+do — and the next thing you see is the library failing to load. A scan now writes the settings down
+the moment it succeeds and says "Saved."; the fields stay on screen if you want to check them.
+
+The 401 that followed said "check the username and password", which was misleading: what actually
+happened is that no username was sent at all. It now says so, and where to fix it.
+
+---
+
 ## LightBooks v1.9 — Manga, and a setup you can point a camera at
 
 **Comics read on the phone now, and the four Calibre fields go in from one QR code.**

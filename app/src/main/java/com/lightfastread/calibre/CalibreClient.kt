@@ -208,7 +208,15 @@ class CalibreClient(private val config: CalibreConfig) {
     }
 
     private fun explain(code: Int): String = when (code) {
-        HttpURLConnection.HTTP_UNAUTHORIZED -> "401 — check the username and password."
+        // Two different problems wearing the same status code, and the difference is the whole fix.
+        // calibre-web logs the failure as `OPDS Login failed for user ""` when no credentials were
+        // sent at all — which is what an address typed in without an account, or a scan that was
+        // never saved, looks like from the server's side.
+        HttpURLConnection.HTTP_UNAUTHORIZED -> if (config.username.isBlank()) {
+            "401 — this server wants an account, and no username is set. Settings → Calibre."
+        } else {
+            "401 — the server rejected that username and password."
+        }
         HttpURLConnection.HTTP_FORBIDDEN -> "403 — that account cannot read the catalogue."
         HttpURLConnection.HTTP_NOT_FOUND -> "404 — no OPDS catalogue at that address."
         429 -> "429 — the server is rate-limiting. Try again in a minute."

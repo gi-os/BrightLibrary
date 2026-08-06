@@ -467,6 +467,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 editingCalibre = false
                 repo.update { it.copy(calibre = config) }
             },
+            onApply = { config -> repo.update { it.copy(calibre = config) } },
             onDismiss = { editingCalibre = false },
         )
     }

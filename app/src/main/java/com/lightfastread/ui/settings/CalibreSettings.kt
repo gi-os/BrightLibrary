@@ -56,6 +56,15 @@ import kotlinx.coroutines.withContext
 fun CalibreSettings(
     initial: CalibreConfig,
     onSave: (CalibreConfig) -> Unit,
+    /**
+     * Write the settings down without leaving the page.
+     *
+     * Only a scan uses this, and it exists because of a real failure: scanning the code fills the
+     * four fields, which looks exactly like being set up — so leaving the page without pressing SAVE
+     * is the obvious thing to do, and it silently kept nothing. The server then answered 401 to an
+     * empty username, which reads as "the code was wrong" rather than "you didn't save".
+     */
+    onApply: (CalibreConfig) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = LightThemeTokens.colors
@@ -235,7 +244,11 @@ fun CalibreSettings(
                     user = TextFieldValue(scanned.username)
                     password = TextFieldValue(scanned.password)
                     kobo = TextFieldValue(scanned.koboUrl)
-                    result = CalibreQr.summarise(before, scanned)
+                    // Saved on the spot. A scan is not a draft — the whole point of it is that
+                    // nobody has to touch the fields afterwards, so requiring a SAVE tap to keep
+                    // what was scanned is a step that will get missed, and does.
+                    onApply(scanned)
+                    result = CalibreQr.summarise(before, scanned) + " Saved."
                 }
             },
             onDismiss = { scanning = false },
