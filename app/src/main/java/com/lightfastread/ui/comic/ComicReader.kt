@@ -75,6 +75,9 @@ import kotlin.math.roundToInt
  * Steps are counted, not measured. Each page's overflow is divided into a whole number of equal steps
  * and the reader moves between step *indices*, so no amount of scrolling can leave you half a step
  * from the bottom, and the last step always lands exactly on it.
+ *
+ * **4-koma mode** takes a page printed as two strips side by side and reads them as two pages: the
+ * right strip first in a Japanese book, then the left, each one tall image taken in four scrolls.
  */
 @Composable
 fun ComicReader(bookId: String, onBack: () -> Unit) {
@@ -113,13 +116,22 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     var showChrome by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
 
-    // In 4-koma mode a page is four strips stacked down it, so the reader counts in *strips* and only
-    // converts back to pages when it has to — for the page number, and for where the book is left.
+    // In 4-koma mode a page is two strips printed side by side, each four panels tall. The reader
+    // counts in *strips* and only converts back to pages when it has to — for the page number, and for
+    // where the book is left.
+    //
+    // Reading order is not left to right. A Japanese book is read right column first, so the strip you
+    // are on has to be turned into a physical column: strip 0 is the rightmost.
     val fourKoma = options.fourKoma
-    val perPage = if (fourKoma) FOURKOMA_STRIPS else 1
+    val perPage = if (fourKoma) FOURKOMA_COLUMNS else 1
     val slots = pageCount * perPage
     fun pageOf(slot: Int) = slot / perPage
-    fun partOf(slot: Int) = if (fourKoma) slot % perPage else -1
+    fun columnOf(slot: Int): Int {
+        if (!fourKoma) return -1
+        val strip = slot % perPage
+        return if (rtl) perPage - 1 - strip else strip
+    }
+    fun stripOf(slot: Int) = if (fourKoma) slot % perPage else -1
 
     // Deliberately *not* keyed on `fourKoma`: the settings callback converts the slot itself when the
     // mode changes, and re-keying here would throw that away and jump back to wherever the book was
@@ -156,8 +168,12 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
      * matched the previous one never recomputed at all.
      */
     fun stepsFor(limit: Float, height: Float): Int {
+        if (limit <= 0f || viewportHeight <= 0f) return 0
+        // A 4-koma strip is one image read from top to bottom in a fixed number of stops: four panels,
+        // four scroll points. Dividing by screenfuls instead would land the panel boundaries wherever
+        // the screen happened to end.
+        if (fourKoma) return FOURKOMA_SCROLLS
         val ideal = viewportHeight * (1f - SCREEN_OVERLAP)
-        if (limit <= 0f || ideal <= 0f) return 0
         val n = ceil(limit / ideal).toInt().coerceAtLeast(1)
         return if (height > viewportHeight * 2f) maxOf(n, MIN_TALL_STEPS) else n
     }
@@ -251,7 +267,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 bookId = bookId,
                 page = pageOf(leaving.slot),
                 crop = options.crop,
-                part = partOf(leaving.slot),
+                part = columnOf(leaving.slot),
                 parts = perPage,
                 fitWidth = options.fitWidth,
                 zoom = 1f,
@@ -274,7 +290,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
             bookId = bookId,
             page = pageOf(slot),
             crop = options.crop,
-            part = partOf(slot),
+            part = columnOf(slot),
             parts = perPage,
             fitWidth = options.fitWidth,
             zoom = zoom,
@@ -413,7 +429,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                     .align(Alignment.BottomCenter),
             ) {
                 LightText(
-                    text = pageLabel(pageOf(slot), partOf(slot), perPage, pageCount, steps, stepIndex, rtl),
+                    text = pageLabel(pageOf(slot), stripOf(slot), perPage, pageCount, steps, stepIndex, rtl),
                     variant = LightTextVariant.Superfine,
                     lighten = true,
                     align = TextAlign.Center,
@@ -457,8 +473,8 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 // Switching 4-koma mode changes what a slot means, so the reader has to be told where
                 // it now is — the top half of the page it was on.
                 if (updated.fourKoma != wasFourKoma) {
-                    val page = if (wasFourKoma) slot / FOURKOMA_STRIPS else slot
-                    slot = if (updated.fourKoma) page * FOURKOMA_STRIPS else page
+                    val page = if (wasFourKoma) slot / FOURKOMA_COLUMNS else slot
+                    slot = if (updated.fourKoma) page * FOURKOMA_COLUMNS else page
                 }
                 settingsRepo.update { current ->
                     current.copy(
@@ -533,8 +549,16 @@ private fun WheelPaging(onStep: (Int) -> Unit) {
 /** How much of the previous screen stays visible after a step, so a line is never cut in half. */
 private const val SCREEN_OVERLAP = 0.08f
 
-/** A yonkoma page is four strips in one column — 4x1, not a 2x2 grid. */
-private const val FOURKOMA_STRIPS = 4
+/**
+ * A yonkoma page prints **two** strips side by side, each four panels tall.
+ *
+ * So the page divides into two columns, not into panels — and the columns are read right one first in
+ * a Japanese book. Each column is then one tall image, taken in [FOURKOMA_SCROLLS] stops.
+ */
+private const val FOURKOMA_COLUMNS = 2
+
+/** Four panels, four scroll points down the strip. */
+private const val FOURKOMA_SCROLLS = 4
 
 /** A strip taller than two screens gets at least this many steps rather than two big jumps. */
 private const val MIN_TALL_STEPS = 4

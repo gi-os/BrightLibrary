@@ -30,7 +30,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * One page — or one strip of one — drawn by hand.
+ * One page — or one column of one — drawn by hand.
  *
  * A `Canvas` rather than an `Image`, because five things have to agree about the same rectangle: the
  * crop, the strip, the fit, the zoom and the scroll. Expressed as one source rect and one
@@ -43,7 +43,12 @@ internal fun ComicPageCanvas(
     bookId: String,
     page: Int,
     crop: Boolean,
-    /** Which slice of the page to show, and how many the page is cut into (1 = the whole page). */
+    /**
+     * Which column of the page to show, and how many columns it is cut into (1 = the whole page).
+     *
+     * This is the *physical* column, counted from the left. Which one is read first is the reader's
+     * business — for a Japanese book that is the rightmost.
+     */
     part: Int,
     parts: Int,
     fitWidth: Boolean,
@@ -101,19 +106,21 @@ internal fun ComicPageCanvas(
 
     val whole = PageCrop.Bounds(0, 0, image.image.width, image.image.height)
     val cropped = if (crop) image.bounds else whole
-    // The 4-koma split: the page cut into [parts] bands stacked down the page, which is how a yonkoma
-    // page is drawn — four strips in one column, not a two-by-two grid.
+    // The 4-koma split is a **vertical cut**: a yonkoma page prints two strips side by side, each four
+    // panels tall, so the page divides into columns and each column is read whole, scrolling down it.
+    // Cutting horizontally — which an earlier version did — slices every strip through the middle of
+    // its panels.
     //
-    // Cut *after* the crop, deliberately: the paper margin is not one of the strips, and slicing the
-    // uncropped page would hand a quarter of the margin to each. The last band takes the remainder so
-    // rounding cannot lose a row of pixels between strips.
+    // Cut *after* the crop, deliberately: the paper margin is not part of a strip, and slicing the
+    // uncropped page would hand half the margin to each column. The last column takes the remainder so
+    // rounding cannot lose a column of pixels between them.
     val source = if (parts <= 1 || part < 0) {
         cropped
     } else {
-        val band = cropped.height / parts
-        val top = cropped.top + band * part
-        val bottom = if (part == parts - 1) cropped.bottom else top + band
-        cropped.copy(top = top, bottom = bottom)
+        val band = cropped.width / parts
+        val left = cropped.left + band * part
+        val right = if (part == parts - 1) cropped.right else left + band
+        cropped.copy(left = left, right = right)
     }
 
     // All of the arithmetic happens in composition, never in the draw scope: reporting the scroll

@@ -1,3 +1,28 @@
+## LightBooks v1.13.2 — 4-koma reads the right strip, then the left
+
+I had the cut in the wrong direction. A yonkoma page prints **two strips side by side**, each four
+panels tall — so the page divides into *columns*, and cutting it horizontally sliced every strip
+through the middle of its panels.
+
+How it reads now, on a page like the *Twilight* example:
+
+```
+right strip → 4 scrolls down it → left strip → 4 scrolls down it → next page
+```
+
+- **The split is vertical**, into two columns, cut after the crop so the paper margin isn't handed half
+  to each. The second column takes the remainder, so rounding can't lose a column of pixels between
+  them.
+- **The right strip is read first** in a right-to-left book, the left first otherwise. The strip you are
+  on is turned into a physical column at the last moment, so nothing else in the reader has to know.
+- **Each strip is one image taken in four scrolls** — four panels, four stops. Dividing by screenfuls
+  instead would put the stops wherever the screen happened to end rather than between panels.
+
+Still remembered per series, and still nothing stored on the file: the strips are source rectangles over
+the one page image.
+
+---
+
 ## LightBooks v1.13.1 — Four strips, per series, and a slower turn
 
 - **4-koma mode cuts a page into four strips, not two halves.** A yonkoma page is four panels in one
