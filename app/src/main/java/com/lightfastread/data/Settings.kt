@@ -95,4 +95,19 @@ data class Settings(
      * See [com.lightfastread.comic.PageCrop] for what it refuses to do.
      */
     val comicCropBorders: Boolean = false,
+    /**
+     * Split every comic page across the middle and read the halves as two pages.
+     *
+     * For the volumes that print two 4-koma strips to a page — half a page fills this screen about
+     * twice over, so reading them as pages is both bigger and the right unit.
+     */
+    val comicFourKoma: Boolean = false,
+    /**
+     * Turn pages by tapping the left and right thirds of the screen.
+     *
+     * On by default, but worth being able to switch off: it is the gesture most easily made by
+     * accident while holding the phone, and with the wheel to hand it is not the only way to turn a
+     * page. Off, a tap anywhere opens the reader's menu instead.
+     */
+    val comicTapToTurn: Boolean = true,
 )

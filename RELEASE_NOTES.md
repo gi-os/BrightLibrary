@@ -1,3 +1,44 @@
+## LightBooks v1.13 — 4-koma mode, and a page turn with nothing between the pages
+
+**The black frame is gone, and it was the pager's fault.** `HorizontalPager` animates its own way —
+sideways, with the gap between pages showing through — and it owned the scroll position, which is also
+why turning backwards kept landing in the wrong place. The transition is now hand-rolled: the page you
+are leaving stays exactly where it was and *darkens* while the new one slides over it in the direction
+you were already travelling. There is never a gap, because the outgoing page is only dropped once the
+incoming one covers it.
+
+**Scrolling is counted in steps, not measured in pixels.** Each page's overflow is divided into a
+whole number of equal steps and the reader moves between step *indices*, so the second notch can no
+longer land you half a step from the bottom — the "0.5" it used to pull. The last step always lands
+exactly on the bottom, and a drag now re-syncs to the nearest step so the notch after it is a whole
+one.
+
+**4-koma mode** splits every page across the middle and reads the halves as two pages, for the
+volumes that print two strips to a page. The split happens *after* the crop, so the paper margin isn't
+counted as part of either strip. Half a page fills this screen about twice over, so the steps are half
+a screen in this mode, and a strip taller than two screens gets at least four of them rather than two
+enormous jumps.
+
+**A settings menu inside the reader**, on the bottom bar next to the fit toggle: fit to width, crop
+white borders, 4-koma mode, and **tap the edges to turn** — which can now be switched off. It is the
+gesture most easily made by accident, and with a wheel to hand it is not the only way to turn a page;
+off, a tap anywhere opens the menu instead. Every option writes through to the saved settings, so the
+next book opens the way this one ended.
+
+Four bugs found by review before this shipped, each of which would have looked like a different
+feature misbehaving:
+
+- The drag-release step re-sync never ran, because the gesture coroutine had captured the step size
+  from the first frame — when the viewport was still zero and every page was worth no steps.
+- Toggling 4-koma threw away your place: the slot was keyed on the mode, so flipping it reset to
+  wherever the book was opened, and the next save made that permanent.
+- A page turn between two same-sized pages never re-reported its measurement, so a backwards turn
+  landed at the top rather than the bottom.
+- A sentinel value used while waiting for that measurement could never be cleared in whole-page mode,
+  which silently stopped backwards turns working for the rest of the session.
+
+---
+
 ## LightBooks v1.12.1 — Even steps, and a page that arrives from the right direction
 
 Three corrections to the fit-to-width reader, all of them about how the scroll *feels*:

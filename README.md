@@ -16,7 +16,7 @@ rename updates in place — no reinstall, no lost books, and an existing Obtaini
 working without being re-added. Every source package is still `com.lightfastread` too; the
 namespace is load-bearing for the R class and the provider authorities.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.12.1-light.1`.
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.13.0-light.1`.
 CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
 see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
@@ -27,6 +27,8 @@ see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](REL
   stored, so naming a book correctly is all it takes to file it — `Vol. 3`, `#3`, `Book 3` or `v03`,
   with trailing `(Digital)`-style tags ignored. A title that merely ends in a number is left alone.
 
+- **4-koma mode**, splitting each page into two strips read as separate pages, with its own settings
+  menu inside the reader (fit, crop, split, and whether tapping the edges turns pages at all).
 - **Comics and manga, fitted to the width.** A page fills the screen's width and scrolls; one wheel
   notch is a screen down, the next one past the bottom turns the page. Pinch to zoom to 6x about the
   fingers, drag to pan, double-tap back to the fit. Optional white-border cropping measures where the
