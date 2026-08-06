@@ -40,6 +40,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FastRead"
+rootProject.name = "BrightLibrary"
 include(":app")
  

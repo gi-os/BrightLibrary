@@ -8,10 +8,10 @@ fork adds is the phone: a port of the real Light SDK design language, a cover sh
 a hardware wheel, and a package identity that installs alongside any upstream FastRead
 build without colliding.
 
-**Named LightBooks since v1.5, on the surface only.** The launcher says "Books" and the
-release titles say LightBooks. Everything an installed phone depends on is untouched:
+**Named BrightLibrary since v1.5, on the surface only.** The launcher says "Books" and the
+release titles say BrightLibrary. Everything an installed phone depends on is untouched:
 `applicationId` is still `com.lightfastread`, the signing key is the same, the repo is still
-**`gi-os/LightFastread`**, and the published APK is still `LightFastread-<version>.apk`. So the
+**`gi-os/BrightLibrary`**, and the published APK is still `BrightLibrary-<version>.apk`. So the
 rename updates in place — no reinstall, no lost books, and an existing Obtainium source keeps
 working without being re-added. Every source package is still `com.lightfastread` too; the
 namespace is load-bearing for the R class and the provider authorities.
@@ -109,23 +109,23 @@ upstream import point.
 
 - v1.6 — Sweep for missing covers instead of searching once, widen the query, and let a
   book's title and author be corrected (FIX NAME)
-- v1.5 — Rename to LightBooks, port the Light SDK design language, shelf of covers,
+- v1.5 — Rename to BrightLibrary, port the Light SDK design language, shelf of covers,
   covers in colour, and a book that opens to its pages (see [RELEASE_NOTES.md](RELEASE_NOTES.md))
 - `d377fb3` — CI: actually check working branches
 - `2f38b86` — Add a full-page ereader mode, opened by tapping the context preview
 - `440482b` — Say in the README what the wheel needs
 - `09fc696` — Scroll with the wheel
-- `ff0bf61` — docs: add LightNoise and LightPods to the collection table
+- `ff0bf61` — docs: add BrightNoise and LightPods to the collection table
 - `8d47df9` — ci: trigger a second signed build to prove certificate stability
 - `4854065` — ci: fix the certificate digest parser
 - `12e4acc` — Sign every release with one stable key so installs can be updated
-- `b3f4c3f` — docs: add LightTip to the collection table
+- `b3f4c3f` — docs: add BrightTip to the collection table
 - `bd2f354` — Make the reader's zone guides a toggle, off by default
-- `f135c55` — Add a LightFog-matched launcher icon
+- `f135c55` — Add a FogLight-matched launcher icon
 - `9e09c25` — Swap descriptions in README.md table
 - `f1f9009` — docs: real screenshots, correct upstream credit, collection table
 - `4c48083` — Move package to com.lightfastread so it can never collide with FastRead
-- `19ff5b4` — Rename to LightFastread
+- `19ff5b4` — Rename to BrightLibrary
 - `0947241` — docs: document the push-triggered versioned release flow
 - `885a95d` — ci: auto-publish a versioned APK on every push to main
 - `5029b18` — build: mark gradlew executable
@@ -140,7 +140,7 @@ provision a second JDK over the network on every run.
 
 ---
 
-# LightBooks
+# BrightLibrary
 
 **An ebook reader for the Light Phone III, forked from [FastRead](https://github.com/fluffyspace/FastRead).**
 
@@ -195,7 +195,7 @@ patched `Generic.kl` phone-wide, so the notches are ordinary key events delivere
 app holds focus, and this fork reads them itself — no accessibility service, no permission, no
 root. Sideload the APK and the wheel scrolls.
 
-[LightControl](https://github.com/gi-os/LightControl) is optional, and it owns the parts of the
+[BrightControl](https://github.com/gi-os/BrightControl) is optional, and it owns the parts of the
 wheel this app leaves alone: hold the wheel in and turn for brightness, tap it for the
 flashlight, the camera button to open the camera. Each is rebindable, tap and hold separately,
 to any installed app, and apps with no wheel code of their own get brightness or a
@@ -207,8 +207,8 @@ app still scrolls per notch — which is the point of the list: a real scroller 
 finger.
 
 ```bash
-# Optional: LightControl, for brightness, the flashlight and the camera button
-adb install -r LightControl-v1.0.x.apk
+# Optional: BrightControl, for brightness, the flashlight and the camera button
+adb install -r BrightControl-v1.0.x.apk
 
 # The key service. NOTE: this setting is a list, and this command REPLACES it —
 # if you also run LightVoice's push-to-talk, colon-join both components instead.
@@ -221,7 +221,7 @@ adb shell appops set com.gios.lightcontrol WRITE_SETTINGS allow
 adb shell appops set com.gios.lightcontrol SYSTEM_ALERT_WINDOW allow
 ```
 
-Latest build: <https://github.com/gi-os/LightControl/releases/latest>.
+Latest build: <https://github.com/gi-os/BrightControl/releases/latest>.
 
 ### Icon
 
@@ -230,10 +230,10 @@ Latest build: <https://github.com/gi-os/LightControl/releases/latest>.
 An open book: a page of dashed text on the left, collapsed to a single ringed word on the
 right. That asymmetry *is* RSVP — the whole book, reduced to one focal point.
 
-Drawn to match [LightFog](https://github.com/gi-os/LightFog) so the two read as siblings on
+Drawn to match [FogLight](https://github.com/gi-os/FogLight) so the two read as siblings on
 the device: heavy white line art on a full-bleed pure-black square, round caps, 30/1024
 outline and 24/1024 detail strokes, ink filling ~62% of the canvas. The ringed dot echoes
-the pins LightFog's dashed route runs between.
+the pins FogLight's dashed route runs between.
 
 `scripts/generate_icon.py` defines the geometry once in a 1024-unit space and emits both
 the mipmap WebPs and the adaptive icon's `VectorDrawable`, so the raster and vector can't
@@ -251,7 +251,7 @@ a plain sideloaded APK, not an SDK tool, so for now:
 
 ```bash
 # Every push to main publishes a signed build to Releases:
-adb install -r LightFastread-<version>.apk
+adb install -r BrightLibrary-<version>.apk
 ```
 
 Each release carries exactly one APK, signed with a stable key. Nothing needs
@@ -259,7 +259,7 @@ uninstalling first; the package ID is unique to this fork.
 
 ### Obtainium
 
-Add `https://github.com/gi-os/LightFastread` as a GitHub source. There is one `.apk` per
+Add `https://github.com/gi-os/BrightLibrary` as a GitHub source. There is one `.apk` per
 release, so there's nothing to disambiguate, and every build is signed with the same key —
 updates apply in place.
 
@@ -431,8 +431,8 @@ Requirements:
 Steps:
 
 ```bash
-git clone https://github.com/gi-os/LightFastread.git
-cd LightFastread
+git clone https://github.com/gi-os/BrightLibrary.git
+cd BrightLibrary
 ./gradlew assembleDebug
 # APK lands in app/build/outputs/apk/debug/
 ```
@@ -550,17 +550,17 @@ Twelve tools for the Light Phone III, all open source, all built in one run.
 
 | Tool | What it does | Built on |
 | --- | --- | --- |
-| [LightPass](https://github.com/gi-os/LightPass) | Photograph a movie ticket, keep the stub | Plain Android |
+| [BrightPasses](https://github.com/gi-os/BrightPasses) | Photograph a movie ticket, keep the stub | Plain Android |
 | [LightQR](https://github.com/gi-os/LightQR) | QR scanner, plus a browser generator | Plain Android |
-| [LightRSS](https://github.com/gi-os/LightRSS) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/LightRSS](https://github.com/zachattack323/LightRSS) |
-| [LightNYCSubway](https://github.com/gi-os/LightNYCSubway) | Live MTA subway arrivals | light-sdk fork |
+| [BrightNews](https://github.com/gi-os/BrightNews) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/BrightNews](https://github.com/zachattack323/BrightNews) |
+| [BrightTransit](https://github.com/gi-os/BrightTransit) | Live MTA subway arrivals | light-sdk fork |
 | [chat](https://github.com/gi-os/chat) | iMessage over a self-hosted BlueBubbles server | Fork of [craigeley/chat](https://github.com/craigeley/chat) |
-| [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
-| [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
-| [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
-| **LightBooks** (this repo, `gi-os/LightFastread`) | Ebook reader: cover shelf, page view, RSVP | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
-| [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
-| [LightNoise](https://github.com/gi-os/LightNoise) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
+| [FogLight](https://github.com/gi-os/FogLight) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
+| [BrightNonogram](https://github.com/gi-os/BrightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
+| [BrightSolitaire](https://github.com/gi-os/BrightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
+| **BrightLibrary** (this repo, `gi-os/BrightLibrary`) | Ebook reader: cover shelf, page view, RSVP | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| [BrightTip](https://github.com/gi-os/BrightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
+| [BrightNoise](https://github.com/gi-os/BrightNoise) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
 | [LightPods](https://github.com/gi-os/LightPods) | AirPods battery, in-ear and lid status | Plain Android, ports [LibrePods](https://github.com/kavishdevar/librepods) |
 
 The Light Phone does not sponsor or endorse any of these. Licences vary per repo. This repo is GPL-3.0, unlike the
