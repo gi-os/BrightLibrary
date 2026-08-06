@@ -1,6 +1,5 @@
 package com.lightfastread.ui.comic
 
-import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -81,17 +80,16 @@ internal fun ComicPageCanvas(
             val file = ComicPages.pageFile(context, bookId, page)
             if (!file.exists()) return@withContext null
             runCatching {
-                val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return@runCatching null
-                // Measured once, here, while the pixels are already in hand — and kept with the page,
-                // so toggling the crop back and forth costs nothing.
-                val pixels = IntArray(bitmap.width * bitmap.height)
-                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-                val bounds = PageCrop.contentBounds(pixels, bitmap.width, bitmap.height)
-                // Asked once, here: is there a blank band down the middle of this page? That is what
-                // decides whether it can be read as two strips, and it is far too expensive to ask on
-                // every frame.
-                val gutter = PageCrop.centreGutter(pixels, bitmap.width, bitmap.height, bounds)
-                LoadedPage(bitmap.asImageBitmap(), bounds, gutter)
+                // Decoded against the heap rather than at whatever size it was stored: a strip
+                // volume's page is 27 MB of bitmap, and a phone with a small heap gets half of one
+                // instead of a dead process.
+                val bitmap = ComicPages.decodeForDisplay(file) ?: return@runCatching null
+                // Measured once, here, and kept with the page, so toggling the crop back and forth
+                // costs nothing. The crop box and the gutter — the band of white that decides whether
+                // this page can be read as two strips — are both far too expensive to ask per frame,
+                // and both are measured on a small copy rather than on these pixels.
+                val measured = ComicPages.measure(file, bitmap.width, bitmap.height)
+                LoadedPage(bitmap.asImageBitmap(), measured.bounds, measured.gutter)
             }.getOrNull()
         }
         if (result != null) {
@@ -174,13 +172,26 @@ internal data class LoadedPage(
 )
 
 /**
- * Decoded pages, kept briefly.
+ * Decoded pages, kept briefly, within a share of the heap.
  *
- * Six entries rather than five: the transition draws the page you are leaving *and* the one you are
- * arriving at, and in 4-koma mode every strip of a page comes out of the same one bitmap.
+ * **Budgeted in bytes, not counted in entries.** Six pages was safe while a page was 868x1240 — four
+ * megabytes each — and is fatal now that a strip volume's page is 2160x3086: six of those is 160 MB
+ * and the heap is not that big. A quarter of the heap always holds at least the two the page turn
+ * draws at once, which is the only number that has to be guaranteed.
+ *
+ * Nothing is recycled on eviction, deliberately. An evicted page may still be the one on screen —
+ * the reader holds it directly — so it is left to the garbage collector, which knows that and a
+ * `recycle()` here would not.
  */
 internal object PageCache {
-    private val cache = LruCache<String, LoadedPage>(6)
+    private val budgetKb =
+        (Runtime.getRuntime().maxMemory() / 4 / 1024).toInt().coerceAtLeast(16 * 1024)
+
+    private val cache = object : LruCache<String, LoadedPage>(budgetKb) {
+        override fun sizeOf(key: String, value: LoadedPage): Int =
+            (value.image.width.toLong() * value.image.height * 4 / 1024).toInt().coerceAtLeast(1)
+    }
+
     fun get(key: String): LoadedPage? = cache.get(key)
     fun put(key: String, value: LoadedPage) = cache.put(key, value)
 }

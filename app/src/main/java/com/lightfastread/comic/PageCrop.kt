@@ -150,6 +150,34 @@ object PageCrop {
     private const val MIN_SPLITTABLE_PX = 200
 
     /**
+     * The same bounds, measured on one size of the page and expressed on another.
+     *
+     * The crop and the gutter are measured on a *small* decode of the page — a 2160px page is 27 MB
+     * of `IntArray` to read pixel by pixel, and none of this measurement needs that resolution — so
+     * the answer arrives in the small copy's coordinates and has to be moved into the one being
+     * drawn. Rounding is outwards for the box and nearest for the gutter: a crop a pixel too generous
+     * shows a pixel of paper, a crop a pixel too tight eats a line of ink.
+     */
+    fun scale(bounds: Bounds, fromWidth: Int, fromHeight: Int, toWidth: Int, toHeight: Int): Bounds {
+        if (fromWidth <= 0 || fromHeight <= 0 || toWidth <= 0 || toHeight <= 0) return bounds
+        if (fromWidth == toWidth && fromHeight == toHeight) return bounds
+        val kx = toWidth.toDouble() / fromWidth
+        val ky = toHeight.toDouble() / fromHeight
+        return Bounds(
+            left = kotlin.math.floor(bounds.left * kx).toInt().coerceIn(0, toWidth),
+            top = kotlin.math.floor(bounds.top * ky).toInt().coerceIn(0, toHeight),
+            right = kotlin.math.ceil(bounds.right * kx).toInt().coerceIn(0, toWidth),
+            bottom = kotlin.math.ceil(bounds.bottom * ky).toInt().coerceIn(0, toHeight),
+        )
+    }
+
+    /** An x measured on a [fromWidth]-wide copy, expressed on a [toWidth]-wide one. */
+    fun scaleX(x: Int, fromWidth: Int, toWidth: Int): Int {
+        if (fromWidth <= 0 || toWidth <= 0) return x
+        return (x.toDouble() * toWidth / fromWidth).toInt().coerceIn(0, toWidth)
+    }
+
+    /**
      * Content bounds of a greyscale-ish page.
      *
      * [pixels] is ARGB, row-major, [width] × [height] — exactly what `Bitmap.getPixels` gives. Only

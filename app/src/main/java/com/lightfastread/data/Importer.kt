@@ -58,7 +58,7 @@ object Importer {
         // succeed and produce a book of blank pages.
         val pages = ComicPages.scan(file, displayName)
         if (pages != null) {
-            val written = try {
+            val converted = try {
                 ComicPages.convert(context, id, file, pages) { done, total ->
                     progress.onPage(done, total)
                 }
@@ -66,6 +66,7 @@ object Importer {
                 ComicPages.delete(context, id)
                 return Result.Failed(e.message ?: "Could not read that comic.")
             }
+            val written = converted.pages
             if (written == 0) {
                 ComicPages.delete(context, id)
                 return Result.Failed("No readable pages in “${title ?: displayName}”.")
@@ -85,6 +86,26 @@ object Importer {
             )
             repo.addComic(book)
             ComicPages.coverBytes(context, id)?.let { repo.setCover(id, it) }
+            // The import has already looked at these pages closely enough to know the volume prints
+            // two strips to a page, so it says so: 4-koma mode is a *fact about the book*, not a
+            // preference, and making the reader discover it in a settings menu after a baffling first
+            // page is worse than turning it on and leaving it easy to turn off.
+            //
+            // Only for the first volume of a series, deliberately. The setting lives on the series, so
+            // a reader who turned it off must not have it switched back on by the next volume they
+            // import — and "first volume" is the only moment at which nobody has had an opinion yet.
+            if (converted.strips) {
+                val key = SeriesTitle.key(SeriesTitle.parse(book.title)?.series ?: book.title)
+                val firstOfItsSeries = repo.books.none { other ->
+                    other.id != id &&
+                        SeriesTitle.key(SeriesTitle.parse(other.title)?.series ?: other.title) == key
+                }
+                if (firstOfItsSeries) {
+                    SettingsRepository.get(context).update { current ->
+                        current.copy(comicFourKomaSeries = current.comicFourKomaSeries + key)
+                    }
+                }
+            }
             return Result.Added(repo.getBook(id) ?: book)
         }
 

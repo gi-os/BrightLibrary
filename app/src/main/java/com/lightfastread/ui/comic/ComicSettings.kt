@@ -102,8 +102,10 @@ internal fun ComicSettings(
                 Toggle(
                     label = "4-koma mode",
                     caption = "Read the two strips printed side by side as separate pages — the right " +
-                        "one first — each taken in four scrolls. Remembered for this series only: it " +
-                        "is a fact about the book, not a preference.",
+                        "one first — each taken in four scrolls. Turned on by the import when a " +
+                        "volume looks like it prints two strips a page, and remembered for this " +
+                        "series only: it is a fact about the book, not a preference. A page with no " +
+                        "white gutter down its middle is shown whole.",
                     checked = options.fourKoma,
                     onToggle = { onChange(options.copy(fourKoma = it)) },
                 )
