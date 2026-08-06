@@ -39,6 +39,7 @@ import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.data.BookRepository
 import com.lightfastread.data.CalibreConfig
 import com.lightfastread.data.SettingsRepository
+import com.lightfastread.data.Storage
 import com.gios.light.common.hw.WheelScroll
 import com.lightfastread.ui.light.ColourEffect
 import com.lightfastread.ui.light.LightBarItem
@@ -402,10 +403,14 @@ private fun BookRow(
                 }
             }
             // Three states in one slot, because there is only room for one: already downloaded, a
-            // format this app reads, or a book it cannot open at all.
+            // format this app reads, or a book it cannot open at all. A readable one also says how
+            // big it is — the difference between a 4 MB novel and a 240 MB volume is worth knowing
+            // before tapping it on a phone.
+            val size = entry.bestDownload()?.first?.length
             LightText(
                 text = when {
                     onShelf -> "ON SHELF"
+                    readable != null && size != null -> "$readable  ${Storage.humanBytes(size)}"
                     readable != null -> readable
                     else -> "—"
                 },

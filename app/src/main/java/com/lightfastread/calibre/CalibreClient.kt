@@ -89,7 +89,7 @@ class CalibreClient(private val config: CalibreConfig) {
 
     fun text(url: String): String = get(url, MAX_FEED_BYTES).toString(Charsets.UTF_8)
 
-    fun bytes(url: String, limit: Long = MAX_BOOK_BYTES): ByteArray = get(url, limit)
+    fun bytes(url: String, limit: Long = MAX_TEXT_BOOK_BYTES): ByteArray = get(url, limit)
 
     /**
      * Download to a file, without ever holding the whole thing.
@@ -98,7 +98,7 @@ class CalibreClient(private val config: CalibreConfig) {
      * megabytes of heap, that is not a slow download but an OutOfMemoryError - and a zip has to be
      * seekable to be read entry by entry anyway, which a stream is not.
      */
-    fun download(url: String, target: File, limit: Long = MAX_BOOK_BYTES): Long {
+    fun download(url: String, target: File, limit: Long = Long.MAX_VALUE): Long {
         var current = url
         var hops = 0
         while (true) {
@@ -122,7 +122,12 @@ class CalibreClient(private val config: CalibreConfig) {
                             if (read < 0) break
                             total += read
                             if (total > limit) {
-                                throw IOException("That file is larger than ${limit / (1024 * 1024)} MB.")
+                                // Reached only when the server never declared a size; a declared one
+                                // is checked before the transfer starts. See data/Storage.kt.
+                                throw IOException(
+                                    "Ran out of room after ${total / (1024 * 1024)} MB — " +
+                                        "the phone has ${limit / (1024 * 1024)} MB to spare."
+                                )
                             }
                             output.write(buffer, 0, read)
                         }
@@ -234,7 +239,11 @@ class CalibreClient(private val config: CalibreConfig) {
         private const val READ_TIMEOUT_MS = 30_000
         private const val MAX_REDIRECTS = 5
         private const val MAX_FEED_BYTES = 8L * 1024 * 1024
-        private const val MAX_BOOK_BYTES = 96L * 1024 * 1024
+        /**
+         * A cap for things read into memory — a feed, a cover, a text book's bytes. Not for
+         * downloads, which stream to disk and are limited by free space instead.
+         */
+        private const val MAX_TEXT_BOOK_BYTES = 256L * 1024 * 1024
         private const val USER_AGENT = "LightBooks/1.7 (github.com/gi-os/LightFastread)"
 
         /**

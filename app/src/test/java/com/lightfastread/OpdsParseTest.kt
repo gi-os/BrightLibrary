@@ -3,6 +3,7 @@ package com.lightfastread
 import com.lightfastread.calibre.CalibreClient
 import com.lightfastread.calibre.Opds
 import com.lightfastread.calibre.ReadingState
+import com.lightfastread.data.Storage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -79,6 +80,15 @@ class OpdsParseTest {
     fun `search template comes out of the OpenSearch description`() {
         val template = Opds.parseSearchTemplate(OSD, "http://192.168.68.59:8768/opds/osd")
         assertEquals("http://192.168.68.59:8768/opds/search/{searchTerms}", template)
+    }
+
+    @Test
+    fun `an acquisition link carries the size the server declared`() {
+        val book = Opds.parse(BOOKS_FEED, "http://192.168.68.59:8768/opds/new").publications.single()
+        assertEquals(4_194_304L, book.bestDownload()!!.first.length)
+        assertEquals("4 MB", Storage.humanBytes(4_194_304L))
+        assertEquals("130 MB", Storage.humanBytes(137_307_346L))
+        assertEquals("1.4 GB", Storage.humanBytes(1_500_000_000L))
     }
 
     @Test
@@ -177,7 +187,7 @@ class OpdsParseTest {
                 <summary>Book two of the Remembrance of Earth's Past.</summary>
                 <link rel="http://opds-spec.org/image" href="/opds/cover/3" type="image/jpeg"/>
                 <link rel="http://opds-spec.org/image/thumbnail" href="/opds/cover_thumb/3" type="image/jpeg"/>
-                <link rel="http://opds-spec.org/acquisition" href="/opds/download/3/epub" type="application/epub+zip"/>
+                <link rel="http://opds-spec.org/acquisition" href="/opds/download/3/epub" type="application/epub+zip" length="4194304"/>
               </entry>
             </feed>
         """.trimIndent().trim()

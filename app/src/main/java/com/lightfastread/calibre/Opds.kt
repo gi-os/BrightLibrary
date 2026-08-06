@@ -193,6 +193,10 @@ object Opds {
         rel = getAttribute("rel").trim(),
         type = getAttribute("type").trim(),
         title = getAttribute("title").trim().ifBlank { null },
+        // calibre-web sends `length="137307346"` on every acquisition link. Knowing the size before
+        // the download starts is what lets a book that will not fit be refused in the row rather
+        // than after four minutes of transfer.
+        length = getAttribute("length").trim().toLongOrNull(),
     )
 
     /** Direct children with this local name, prefix ignored. */
@@ -221,6 +225,8 @@ data class OpdsLink(
     val rel: String,
     val type: String,
     val title: String? = null,
+    /** Declared size in bytes, when the server says. Null is common and means "find out". */
+    val length: Long? = null,
 )
 
 data class OpdsEntry(

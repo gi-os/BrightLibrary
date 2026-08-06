@@ -6,6 +6,7 @@ import com.lightfastread.data.BookRepository
 import com.lightfastread.data.CalibreConfig
 import com.lightfastread.data.Covers
 import com.lightfastread.data.Importer
+import com.lightfastread.data.Storage
 import java.io.File
 
 /**
@@ -51,10 +52,19 @@ object CalibreImport {
         val (link, ext) = entry.bestDownload()
             ?: return Result.Failed("“${entry.title}” is not in a format this app can read.")
 
+        // Refused before the transfer rather than after it. calibre-web declares the size on every
+        // acquisition link, so a 4 GB omnibus on a phone with 2 GB free is a sentence on screen in
+        // no time at all instead of four minutes of downloading and then a failure.
+        link.length?.let { declared ->
+            if (!Storage.fits(context, declared)) {
+                return Result.Failed(Storage.tooBigMessage(context, declared))
+            }
+        }
+
         val client = CalibreClient(config)
         val staged = File(context.cacheDir, "calibre-${System.currentTimeMillis()}.$ext")
         try {
-            client.download(link.href, staged)
+            client.download(link.href, staged, Storage.downloadLimit(context))
         } catch (e: Exception) {
             staged.delete()
             return Result.Failed(e.message ?: "Download failed.")

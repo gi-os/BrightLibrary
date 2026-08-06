@@ -1,3 +1,24 @@
+## LightBooks v1.10 — Downloads are limited by the phone, not by a number I made up
+
+The download cap was 96 MB, which is generous for a novel and meaningless for a comic: a manga
+volume is 100–250 MB, so half the library refused to download and said "that file is larger than
+96 MB" as though 96 were a fact about the phone.
+
+The limit is now the free space on the device, less a 300 MB reserve so a download can never fill
+the disk out from under Android. Two things follow from that:
+
+- **A book that will not fit is refused before the transfer starts.** calibre-web declares the size
+  of every download in the catalogue feed, so the check happens the moment you tap, and the message
+  names both numbers — "That file is 1.4 GB and the phone has 900 MB free" — instead of a fixed
+  ceiling.
+- **The LIBRARY rows show the size** next to the format, so the difference between a 4 MB novel and
+  a 240 MB volume is visible before you commit to it.
+
+A hard ceiling of 4 GB remains for the case where a link is wrong and a server streams an error page
+forever, and the in-memory cap (feeds, covers, text books) went from 96 MB to 256 MB.
+
+---
+
 ## LightBooks v1.9.2 — The Calibre feature actually runs on the phone
 
 **A regex the JDK accepts and Android refuses took the whole thing out, silently, from the first
