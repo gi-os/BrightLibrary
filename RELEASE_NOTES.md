@@ -1,3 +1,19 @@
+## LightBooks v1.13.1 — Four strips, per series, and a slower turn
+
+- **4-koma mode cuts a page into four strips, not two halves.** A yonkoma page is four panels in one
+  column — 4x1, not a 2x2 grid — so each strip is now one screen of reading and a notch moves to the
+  next one. The cut still happens after the crop, so the paper margin is not handed a quarter to each
+  strip, and the last strip takes the remainder so rounding cannot lose a row of pixels between them.
+- **It is remembered per series, not for the whole app.** Whether a book is four strips to a page is a
+  fact about the book: *Nichijou* is, *Wind Breaker* is not, and a global switch would have to be
+  flipped on the way into and out of every volume. A book with no series remembers against its own
+  title. Fit-to-width, cropping and tap-to-turn stay global, since those are preferences.
+- **The turn is slower**: the page takes 340ms to slide up rather than 210, and the darkening behind it
+  runs over 420ms and linearly, so it reads as a fade rather than as arriving at black and waiting
+  there. In-page steps went from 220ms to 260ms.
+
+---
+
 ## LightBooks v1.13 — 4-koma mode, and a page turn with nothing between the pages
 
 **The black frame is gone, and it was the pager's fault.** `HorizontalPager` animates its own way —

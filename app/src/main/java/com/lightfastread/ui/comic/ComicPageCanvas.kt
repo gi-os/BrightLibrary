@@ -30,10 +30,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * One page — or one half of one — drawn by hand.
+ * One page — or one strip of one — drawn by hand.
  *
  * A `Canvas` rather than an `Image`, because five things have to agree about the same rectangle: the
- * crop, the 4-koma split, the fit, the zoom and the scroll. Expressed as one source rect and one
+ * crop, the strip, the fit, the zoom and the scroll. Expressed as one source rect and one
  * destination rect that is arithmetic you can read; expressed as nested `ContentScale` and
  * `graphicsLayer` transforms it is a multiplication order that is easy to get subtly wrong and
  * impossible to debug on a phone with no logcat attached.
@@ -43,8 +43,9 @@ internal fun ComicPageCanvas(
     bookId: String,
     page: Int,
     crop: Boolean,
-    /** -1 for a whole page; 0 for the top half and 1 for the bottom in 4-koma mode. */
-    half: Int,
+    /** Which slice of the page to show, and how many the page is cut into (1 = the whole page). */
+    part: Int,
+    parts: Int,
     fitWidth: Boolean,
     zoom: Float,
     pan: Offset,
@@ -66,7 +67,7 @@ internal fun ComicPageCanvas(
     onMeasured: (maxScroll: Float, contentHeight: Float) -> Unit,
 ) {
     val context = LocalContext.current
-    val key = "$bookId#$page"  // the bitmap is the whole page; the half is a source rect over it
+    val key = "$bookId#$page"  // the bitmap is the whole page; a strip is a source rect over it
     var loaded by remember(key) { mutableStateOf(PageCache.get(key)) }
 
     LaunchedEffect(key) {
@@ -100,12 +101,19 @@ internal fun ComicPageCanvas(
 
     val whole = PageCrop.Bounds(0, 0, image.image.width, image.image.height)
     val cropped = if (crop) image.bounds else whole
-    // The 4-koma split, cut *after* the crop: the paper margin is not one of the two strips, and
-    // splitting the uncropped page would put half the margin in each.
-    val source = when (half) {
-        0 -> cropped.copy(bottom = cropped.top + cropped.height / 2)
-        1 -> cropped.copy(top = cropped.top + cropped.height / 2)
-        else -> cropped
+    // The 4-koma split: the page cut into [parts] bands stacked down the page, which is how a yonkoma
+    // page is drawn — four strips in one column, not a two-by-two grid.
+    //
+    // Cut *after* the crop, deliberately: the paper margin is not one of the strips, and slicing the
+    // uncropped page would hand a quarter of the margin to each. The last band takes the remainder so
+    // rounding cannot lose a row of pixels between strips.
+    val source = if (parts <= 1 || part < 0) {
+        cropped
+    } else {
+        val band = cropped.height / parts
+        val top = cropped.top + band * part
+        val bottom = if (part == parts - 1) cropped.bottom else top + band
+        cropped.copy(top = top, bottom = bottom)
     }
 
     // All of the arithmetic happens in composition, never in the draw scope: reporting the scroll
@@ -122,7 +130,7 @@ internal fun ComicPageCanvas(
     // Keyed on which page this is, not only on how big it is: a converted volume's pages are all the
     // same pixel size, so keying on the measurement alone meant the effect never re-ran on a page turn
     // and the new page was never measured at all.
-    LaunchedEffect(page, half, limit, drawH, active) { if (active) onMeasured(limit, drawH) }
+    LaunchedEffect(page, part, parts, limit, drawH, active) { if (active) onMeasured(limit, drawH) }
 
     Canvas(Modifier.fillMaxSize()) {
         val x = (viewportW - drawW) / 2f + pan.x
@@ -147,7 +155,7 @@ internal data class LoadedPage(val image: ImageBitmap, val bounds: PageCrop.Boun
  * Decoded pages, kept briefly.
  *
  * Six entries rather than five: the transition draws the page you are leaving *and* the one you are
- * arriving at, and in 4-koma mode both halves of both pages come out of the same two bitmaps.
+ * arriving at, and in 4-koma mode every strip of a page comes out of the same one bitmap.
  */
 internal object PageCache {
     private val cache = LruCache<String, LoadedPage>(6)

@@ -11,7 +11,7 @@ plugins {
 // Single source of truth for the version. The CI workflow greps
 // `baseVersionName` out of this file to name the APK artifacts, so keep it as a
 // plain string literal.
-val baseVersionName = "1.13.0-light.1"
+val baseVersionName = "1.13.1-light.1"
 val ciRunNumber: Int? = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")

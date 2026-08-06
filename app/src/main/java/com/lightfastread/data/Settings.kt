@@ -96,12 +96,14 @@ data class Settings(
      */
     val comicCropBorders: Boolean = false,
     /**
-     * Split every comic page across the middle and read the halves as two pages.
+     * The series that are read as 4-koma — split into strips — by [com.lightfastread.data.SeriesTitle.key].
      *
-     * For the volumes that print two 4-koma strips to a page — half a page fills this screen about
-     * twice over, so reading them as pages is both bigger and the right unit.
+     * Per series rather than one switch for the app, because it is a fact about the book and not a
+     * preference: *Nichijou* is four strips to a page and *Wind Breaker* is not, and a global setting
+     * would have to be flipped on the way into and out of every volume. A book with no series keys on
+     * its own title, so a standalone volume still remembers.
      */
-    val comicFourKoma: Boolean = false,
+    val comicFourKomaSeries: Set<String> = emptySet(),
     /**
      * Turn pages by tapping the left and right thirds of the screen.
      *

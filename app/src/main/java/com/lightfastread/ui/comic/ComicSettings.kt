@@ -101,8 +101,9 @@ internal fun ComicSettings(
                 )
                 Toggle(
                     label = "4-koma mode",
-                    caption = "Split every page across the middle and read the halves as two pages. " +
-                        "For the volumes that print two strips to a page.",
+                    caption = "Cut every page into four strips down the page and read them one at a " +
+                        "time. Remembered for this series only — it is a fact about the book, not a " +
+                        "preference.",
                     checked = options.fourKoma,
                     onToggle = { onChange(options.copy(fourKoma = it)) },
                 )

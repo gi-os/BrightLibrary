@@ -3,6 +3,7 @@ package com.lightfastread.ui.comic
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.gios.light.common.hw.WheelSteps
 import com.lightfastread.data.BookRepository
+import com.lightfastread.data.SeriesTitle
 import com.lightfastread.data.SettingsRepository
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightBottomBar
@@ -92,12 +94,18 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     val pageCount = book.totalWords
     val rtl = book.rightToLeft
 
+    // Whether a book is four strips to a page is a fact about the series, not a preference, so it is
+    // remembered against the series rather than globally. A book with no series keys on its own title.
+    val seriesKey = remember(book.id, book.title) {
+        SeriesTitle.key(SeriesTitle.parse(book.title)?.series ?: book.title)
+    }
+
     var options by remember {
         mutableStateOf(
             ComicOptions(
                 fitWidth = settings.comicFitWidth,
                 crop = settings.comicCropBorders,
-                fourKoma = settings.comicFourKoma,
+                fourKoma = seriesKey in settings.comicFourKomaSeries,
                 tapToTurn = settings.comicTapToTurn,
             )
         )
@@ -105,13 +113,13 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     var showChrome by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
 
-    // In 4-koma mode every page is two, so the reader counts in *halves* and only converts back to
-    // pages when it has to — for the page number, and for where the book is left.
+    // In 4-koma mode a page is four strips stacked down it, so the reader counts in *strips* and only
+    // converts back to pages when it has to — for the page number, and for where the book is left.
     val fourKoma = options.fourKoma
-    val perPage = if (fourKoma) 2 else 1
+    val perPage = if (fourKoma) FOURKOMA_STRIPS else 1
     val slots = pageCount * perPage
     fun pageOf(slot: Int) = slot / perPage
-    fun halfOf(slot: Int) = if (fourKoma) slot % perPage else -1
+    fun partOf(slot: Int) = if (fourKoma) slot % perPage else -1
 
     // Deliberately *not* keyed on `fourKoma`: the settings callback converts the slot itself when the
     // mode changes, and re-keying here would throw that away and jump back to wherever the book was
@@ -139,16 +147,16 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     /**
      * How many steps a page of this shape is worth.
      *
-     * One screen at a time normally. In 4-koma mode the strips are wide and short, so a half fills the
-     * screen twice over and half-screen steps read better — and a half taller than two screens is
-     * given at least [MIN_TALL_STEPS] of them, so a long strip is never two enormous jumps.
+     * One screen at a time. A 4-koma strip usually needs none — it is wide and short, so it fits — and
+     * the notch simply moves to the next strip. A strip that *is* taller than two screens gets at
+     * least [MIN_TALL_STEPS] steps rather than two enormous jumps.
      *
      * A function rather than a derived value because the measurement arrives in a callback, and the
      * callback needs the answer *then* — deferring it to a keyed effect meant a page whose height
      * matched the previous one never recomputed at all.
      */
     fun stepsFor(limit: Float, height: Float): Int {
-        val ideal = viewportHeight * (if (fourKoma) FOURKOMA_STEP else (1f - SCREEN_OVERLAP))
+        val ideal = viewportHeight * (1f - SCREEN_OVERLAP)
         if (limit <= 0f || ideal <= 0f) return 0
         val n = ceil(limit / ideal).toInt().coerceAtLeast(1)
         return if (height > viewportHeight * 2f) maxOf(n, MIN_TALL_STEPS) else n
@@ -176,7 +184,10 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 scroll.snapTo(0f)
                 stepIndex = 0
                 dim.snapTo(0f)
-                launch { dim.animateTo(DIM_MAX, tween(PAGE_ENTER_MS)) }
+                // The dim runs longer than the slide on purpose: it is still deepening when the page
+                // underneath is covered, so what you see is a gradual darkening rather than something
+                // that arrives at full black and waits there.
+                launch { dim.animateTo(DIM_MAX, tween(DIM_MS, easing = LinearEasing)) }
                 enter.animateTo(0f, tween(PAGE_ENTER_MS, easing = FastOutSlowInEasing))
                 // Only now is the page underneath invisible, so only now can it go.
                 outgoing = null
@@ -240,7 +251,8 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 bookId = bookId,
                 page = pageOf(leaving.slot),
                 crop = options.crop,
-                half = halfOf(leaving.slot),
+                part = partOf(leaving.slot),
+                parts = perPage,
                 fitWidth = options.fitWidth,
                 zoom = 1f,
                 pan = Offset.Zero,
@@ -262,7 +274,8 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
             bookId = bookId,
             page = pageOf(slot),
             crop = options.crop,
-            half = halfOf(slot),
+            part = partOf(slot),
+            parts = perPage,
             fitWidth = options.fitWidth,
             zoom = zoom,
             pan = pan,
@@ -400,7 +413,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                     .align(Alignment.BottomCenter),
             ) {
                 LightText(
-                    text = pageLabel(pageOf(slot), halfOf(slot), pageCount, steps, stepIndex, rtl),
+                    text = pageLabel(pageOf(slot), partOf(slot), perPage, pageCount, steps, stepIndex, rtl),
                     variant = LightTextVariant.Superfine,
                     lighten = true,
                     align = TextAlign.Center,
@@ -444,15 +457,21 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 // Switching 4-koma mode changes what a slot means, so the reader has to be told where
                 // it now is — the top half of the page it was on.
                 if (updated.fourKoma != wasFourKoma) {
-                    val page = if (wasFourKoma) slot / 2 else slot
-                    slot = if (updated.fourKoma) page * 2 else page
+                    val page = if (wasFourKoma) slot / FOURKOMA_STRIPS else slot
+                    slot = if (updated.fourKoma) page * FOURKOMA_STRIPS else page
                 }
-                settingsRepo.update {
-                    it.copy(
+                settingsRepo.update { current ->
+                    current.copy(
                         comicFitWidth = updated.fitWidth,
                         comicCropBorders = updated.crop,
-                        comicFourKoma = updated.fourKoma,
                         comicTapToTurn = updated.tapToTurn,
+                        // Per series: every other volume of this series opens the same way, and nothing
+                        // else changes.
+                        comicFourKomaSeries = if (updated.fourKoma) {
+                            current.comicFourKomaSeries + seriesKey
+                        } else {
+                            current.comicFourKomaSeries - seriesKey
+                        },
                     )
                 }
             },
@@ -461,17 +480,18 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     }
 }
 
-/** The page you are on, which half of it, and how far down — everything the counter can usefully say. */
+/** The page, which strip of it, and how far down — everything the counter can usefully say. */
 private fun pageLabel(
     page: Int,
-    half: Int,
+    part: Int,
+    parts: Int,
     pageCount: Int,
     steps: Int,
     stepIndex: Int,
     rtl: Boolean,
 ): String = buildString {
     append("${page + 1} / $pageCount")
-    if (half == 0) append(" top") else if (half == 1) append(" bottom")
+    if (part >= 0 && parts > 1) append("  strip ${part + 1}/$parts")
     if (steps > 0) append("  ·  ${(stepIndex + 1).coerceAtMost(steps + 1)}/${steps + 1}")
     if (rtl) append("  ←")
 }
@@ -513,8 +533,8 @@ private fun WheelPaging(onStep: (Int) -> Unit) {
 /** How much of the previous screen stays visible after a step, so a line is never cut in half. */
 private const val SCREEN_OVERLAP = 0.08f
 
-/** 4-koma strips are short and wide, so half a screen at a time reads better than a whole one. */
-private const val FOURKOMA_STEP = 0.5f
+/** A yonkoma page is four strips in one column — 4x1, not a 2x2 grid. */
+private const val FOURKOMA_STRIPS = 4
 
 /** A strip taller than two screens gets at least this many steps rather than two big jumps. */
 private const val MIN_TALL_STEPS = 4
@@ -525,8 +545,16 @@ private const val SWIPE_FRACTION = 0.25f
 /** How dark the page being left behind goes while the next one covers it. */
 private const val DIM_MAX = 0.55f
 
-private const val SCROLL_MS = 220
-private const val PAGE_ENTER_MS = 210
+/**
+ * Slow enough to follow, quick enough that it never feels like waiting.
+ *
+ * The page slide is the slowest of the three: it travels a whole screen, and a turn that snaps is the
+ * one thing that makes you lose your place. The dim outlasts it so the darkening still reads as a fade
+ * rather than as a state.
+ */
+private const val SCROLL_MS = 260
+private const val PAGE_ENTER_MS = 340
+private const val DIM_MS = 420
 private const val DOUBLE_TAP_ZOOM = 2.5f
 private const val MAX_ZOOM = 6f
 private const val NOTCHES_PER_STEP = 3
