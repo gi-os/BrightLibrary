@@ -122,6 +122,52 @@ object Opds {
     }
 
     /**
+     * Put the search terms into an OpenSearch URL template.
+     *
+     * Written by hand rather than with a regex, and that is the point of it. The regex this replaces
+     * was `\{(?:[a-zA-Z]+:)?searchTerms\??}` — a lone unescaped `}`, which the JDK accepts as a
+     * literal and **Android's ICU-backed engine rejects**. It sat in a `companion object` property,
+     * so compiling it was part of class initialisation: the first call to any method on
+     * [CalibreClient] threw `ExceptionInInitializerError` before a single byte went to the network,
+     * every caller swallowed it as "that address is not a URL", and the entire Calibre feature was
+     * dead on the one device it exists for while passing every test on the JVM.
+     *
+     * A template looks like `/opds/search/{searchTerms}`, sometimes with a namespace prefix
+     * (`{atom:searchTerms}`) or an optional marker (`{searchTerms?}`). Per OpenSearch, a parameter
+     * this client does not understand is dropped when it is optional and left alone when it is not —
+     * a server that requires something we cannot supply should fail visibly, not silently search for
+     * the wrong thing.
+     */
+    fun fillSearchTemplate(template: String, terms: String): String {
+        val out = StringBuilder(template.length + terms.length)
+        var i = 0
+        while (i < template.length) {
+            val ch = template[i]
+            if (ch != '{') {
+                out.append(ch)
+                i++
+                continue
+            }
+            val close = template.indexOf('}', i + 1)
+            if (close < 0) {
+                // An unclosed brace is not a parameter, it is a character in a URL.
+                out.append(template, i, template.length)
+                break
+            }
+            val inner = template.substring(i + 1, close)
+            val optional = inner.endsWith("?")
+            val name = inner.removeSuffix("?").substringAfterLast(':')
+            when {
+                name.equals("searchTerms", ignoreCase = true) -> out.append(terms)
+                optional -> Unit
+                else -> out.append(template, i, close + 1)
+            }
+            i = close + 1
+        }
+        return out.toString()
+    }
+
+    /**
      * Resolve a possibly relative href against the URL it was found at.
      *
      * Every server does this differently — calibre-web emits `/opds/...`, calibre emits

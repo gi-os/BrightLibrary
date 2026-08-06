@@ -82,6 +82,32 @@ class OpdsParseTest {
     }
 
     @Test
+    fun `search templates are filled without a regex`() {
+        assertEquals(
+            "http://basilnet:8768/opds/search/dune",
+            Opds.fillSearchTemplate("http://basilnet:8768/opds/search/{searchTerms}", "dune"),
+        )
+        // Namespace prefixes and the optional marker are both real, and both appear in the wild.
+        assertEquals(
+            "/search?q=dune",
+            Opds.fillSearchTemplate("/search?q={atom:searchTerms}", "dune"),
+        )
+        assertEquals("/search?q=dune", Opds.fillSearchTemplate("/search?q={searchTerms?}", "dune"))
+        // An optional parameter this client cannot supply is dropped; a required one is left in
+        // place so the request fails loudly rather than searching for something else.
+        assertEquals(
+            "/search?q=dune&start=",
+            Opds.fillSearchTemplate("/search?q={searchTerms}&start={startIndex?}", "dune"),
+        )
+        assertEquals(
+            "/search?q=dune&page={pageNumber}",
+            Opds.fillSearchTemplate("/search?q={searchTerms}&page={pageNumber}", "dune"),
+        )
+        // A brace that is not a parameter is a character in a URL.
+        assertEquals("/search/a{b", Opds.fillSearchTemplate("/search/a{b", "dune"))
+    }
+
+    @Test
     fun `catalog URL tolerates what people actually type`() {
         assertEquals("http://192.168.68.59:8768/opds", CalibreClient.catalogUrl("192.168.68.59:8768"))
         assertEquals("http://192.168.68.59:8768/opds", CalibreClient.catalogUrl("http://192.168.68.59:8768/"))

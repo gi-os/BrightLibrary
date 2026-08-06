@@ -64,7 +64,7 @@ class CalibreClient(private val config: CalibreConfig) {
         val template = searchTemplate ?: resolveSearchTemplate().also { searchTemplate = it }
         val terms = URLEncoder.encode(query.trim(), "UTF-8")
         return if (template != null) {
-            SEARCH_TERM_PATTERN.replace(template) { terms }
+            Opds.fillSearchTemplate(template, terms)
         } else {
             "${catalogUrl(config.baseUrl).trimEnd('/')}/search/$terms"
         }
@@ -236,8 +236,6 @@ class CalibreClient(private val config: CalibreConfig) {
         private const val MAX_FEED_BYTES = 8L * 1024 * 1024
         private const val MAX_BOOK_BYTES = 96L * 1024 * 1024
         private const val USER_AGENT = "LightBooks/1.7 (github.com/gi-os/LightFastread)"
-
-        private val SEARCH_TERM_PATTERN = Regex("""\{(?:[a-zA-Z]+:)?searchTerms\??}""")
 
         /**
          * Turn whatever was typed into Settings into a catalogue URL.

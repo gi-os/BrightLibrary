@@ -1,3 +1,36 @@
+## LightBooks v1.9.2 — The Calibre feature actually runs on the phone
+
+**A regex the JDK accepts and Android refuses took the whole thing out, silently, from the first
+build that had it.**
+
+`CalibreClient` compiled `\{(?:[a-zA-Z]+:)?searchTerms\??}` as a `companion object` property — the
+OpenSearch template matcher. That trailing `}` is unescaped. The JDK reads it as a literal brace;
+Android's regex engine is ICU-backed and stricter, and rejects it. Because the property is a
+companion initialiser, the *first call to any method on the class* threw
+`ExceptionInInitializerError` before a single byte reached the network — and every call site wrapped
+that in `runCatching`, so what you saw was "That server address is not a URL". The address was fine.
+Nothing was wrong with the server, the account or the network; a packet capture on the NAS showed the
+phone never opened a socket at all.
+
+Three changes:
+
+- **The template is filled in by hand now, not by a regex.** It reads the `{searchTerms}` parameter
+  with a character scan that also understands a namespace prefix (`{atom:searchTerms}`) and the
+  optional marker, drops optional parameters it cannot supply, and leaves required unknown ones alone
+  so a server that needs them fails loudly. `CalibreClient`'s companion no longer runs any code at
+  class-initialisation time.
+- **Failures name the thing that failed.** "That server address is not a URL" now carries the
+  exception and its message, and the LIBRARY error prints the address it tried. Either line alone
+  would have found this in a minute instead of an evening.
+- Also in this build, from v1.9.1: a scanned setup code **saves itself** rather than waiting for a
+  SAVE tap, and a 401 distinguishes "no account is set" from "the server refused this one".
+
+Worth stating plainly: the unit tests passed throughout, because they run on the JVM, and so did a
+standalone compile of the same file. A pure-Kotlin test cannot see an ICU difference. The check that
+would have caught this is running the code on the device.
+
+---
+
 ## LightBooks v1.9.1 — A scanned code saves itself, and errors say what went wrong
 
 Scanning the setup code filled in the four fields and then, if you left the page without pressing

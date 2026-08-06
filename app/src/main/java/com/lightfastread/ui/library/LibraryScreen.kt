@@ -113,12 +113,18 @@ fun LibraryScreen(onBack: () -> Unit) {
         ProgressSync.flush(context)
         if (config.baseUrl.isBlank()) return@LaunchedEffect
         trail.clear()
-        val root = runCatching { CalibreClient.catalogUrl(config.baseUrl) }.getOrNull()
-        if (root == null) {
-            error = "That server address is not a URL."
+        // `runCatching` catches Throwable, not just Exception, and that is not a detail: this line
+        // once swallowed an `ExceptionInInitializerError` from a regex that Android refused to
+        // compile, and reported it as a bad address. Whatever went wrong is now named.
+        val root = runCatching { CalibreClient.catalogUrl(config.baseUrl) }
+        val rootUrl = root.getOrNull()
+        if (rootUrl == null) {
+            val cause = root.exceptionOrNull()
+            error = "That server address is not a URL — " +
+                "${cause?.javaClass?.simpleName}: ${cause?.message}"
             return@LaunchedEffect
         }
-        load(root, true)
+        load(rootUrl, true)
     }
 
     val up: () -> Unit = {
