@@ -65,6 +65,91 @@ object PageCrop {
     private const val MIN_KEPT_FRACTION = 0.25
 
     /**
+     * Where the white gutter down the middle of a page is, or null if there isn't one.
+     *
+     * This is what decides whether a page *can* be read as two 4-koma strips. A yonkoma page prints
+     * two strips with a band of blank paper between them; a splash page, a chapter break or a
+     * double-page spread has no such band, and cutting one down the middle would slice a drawing in
+     * half. So the mode asks the page rather than assuming.
+     *
+     * Returns the **centre of the widest blank run** near the middle, not the geometric middle: the
+     * gutter is rarely centred on a scan, and cutting at the halfway point puts a sliver of the right
+     * strip at the end of the left one.
+     *
+     * [bounds] is the content area — the cropped page, so the paper margin is not mistaken for a
+     * gutter. Pure, and tested against the shapes real pages come in.
+     */
+    fun centreGutter(
+        pixels: IntArray,
+        width: Int,
+        height: Int,
+        bounds: Bounds = Bounds(0, 0, width, height),
+        step: Int = 3,
+    ): Int? {
+        if (width <= 0 || height <= 0 || pixels.size < width * height) return null
+        if (bounds.width < MIN_SPLITTABLE_PX || bounds.height <= 0) return null
+
+        fun columnIsBlank(x: Int): Boolean {
+            var ink = 0
+            var counted = 0
+            var y = bounds.top
+            while (y < bounds.bottom) {
+                if ((pixels[y * width + x] and 0xFF) < WHITE) ink++
+                counted++
+                y += step
+            }
+            return counted > 0 && ink.toDouble() / counted < GUTTER_MAX_INK_FRACTION
+        }
+
+        // Only near the middle. A blank column a tenth of the way in is the space beside a panel, not
+        // the gutter between two strips.
+        val from = bounds.left + (bounds.width * (0.5 - GUTTER_SEARCH_SPAN / 2)).toInt()
+        val to = bounds.left + (bounds.width * (0.5 + GUTTER_SEARCH_SPAN / 2)).toInt()
+        if (to <= from) return null
+
+        var bestStart = -1
+        var bestEnd = -1
+        var runStart = -1
+        var x = from.coerceAtLeast(0)
+        val limit = to.coerceAtMost(width - 1)
+        while (x <= limit) {
+            if (columnIsBlank(x)) {
+                if (runStart < 0) runStart = x
+                if (x - runStart > bestEnd - bestStart) {
+                    bestStart = runStart
+                    bestEnd = x
+                }
+            } else {
+                runStart = -1
+            }
+            x += step
+        }
+        if (bestStart < 0) return null
+
+        val runWidth = bestEnd - bestStart + step
+        val minRun = (bounds.width * MIN_GUTTER_FRACTION).toInt().coerceAtLeast(step)
+        if (runWidth < minRun) return null
+        // A "gutter" a quarter of the page wide is not a gutter, it is an empty page.
+        if (runWidth > bounds.width * MAX_GUTTER_FRACTION) return null
+        return (bestStart + bestEnd) / 2
+    }
+
+    /** How wide a band of the page to look in, centred on the middle. */
+    private const val GUTTER_SEARCH_SPAN = 0.34
+
+    /** A gutter is blank paper: far stricter than the 2% a *content* line is allowed. */
+    private const val GUTTER_MAX_INK_FRACTION = 0.004
+
+    /** Narrower than this and it is the space between two panels of one strip, not a gutter. */
+    private const val MIN_GUTTER_FRACTION = 0.012
+
+    /** Wider than this and the middle of the page is simply empty. */
+    private const val MAX_GUTTER_FRACTION = 0.25
+
+    /** Below this width a page is too small to be two strips of anything. */
+    private const val MIN_SPLITTABLE_PX = 200
+
+    /**
      * Content bounds of a greyscale-ish page.
      *
      * [pixels] is ARGB, row-major, [width] × [height] — exactly what `Bitmap.getPixels` gives. Only

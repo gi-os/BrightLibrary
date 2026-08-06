@@ -1,3 +1,29 @@
+## LightBooks v1.13.4 — 4-koma only splits a page that has a gutter
+
+**A full page is no longer cut in half.** 4-koma mode used to split every page at the halfway point,
+which is right for a yonkoma page and wrong for everything else in the volume — a splash page, a
+chapter break, a double-page spread all got sliced through the middle of the drawing.
+
+Each page is now asked, once, when it loads: **is there a band of blank paper down the middle?** If
+there is, the page reads as two strips and **the cut is the centre of that band**, not the centre of
+the page — a scan's gutter is rarely centred, and cutting at the halfway point leaves a sliver of one
+strip at the end of the other. If there isn't, the page is shown whole and the strip that doesn't exist
+is stepped over, so the wheel goes straight on to the next page.
+
+What counts as a gutter, measured against real page shapes:
+
+- **Blank, not merely quiet** — under 0.4% ink, far stricter than the 2% a content line is allowed.
+- **Near the middle**, within the central third. A gap a fifth of the way in is the space beside a
+  panel.
+- **At least 1.2% of the page wide.** Four pixels between two panels of one strip is not a gutter.
+- **At most a quarter of the page.** Wider than that and the middle is simply empty.
+- A speech bubble straddling the gutter blocks the split, which is correct: those two strips are joined.
+
+Nine assertions cover it, including the off-centre case — a gutter at 430–449 on a 900px page cuts at
+440, and one at 380–419 cuts at 399 while the page's own middle is 450.
+
+---
+
 ## LightBooks v1.13.3 — Three scrolls, four stops
 
 A 4-koma strip now takes **three** scrolls rather than four, which is four resting points down the

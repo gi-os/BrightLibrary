@@ -2,6 +2,7 @@ package com.lightfastread
 
 import com.lightfastread.comic.PageCrop
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -118,6 +119,48 @@ class PageCropTest {
         val b = PageCrop.contentBounds(pixels, w, h)
         assertTrue(b.left in 28..40)
         assertTrue(b.right in 360..372)
+    }
+
+    @Test
+    fun `a yonkoma page's gutter is found, and its centre is the cut`() {
+        val w = 900
+        val h = 1240
+        // Two strips of four panels with a 20px blank gutter, deliberately off-centre: the page middle
+        // is 450, the gutter is 430..449.
+        val pixels = page(w, h) { set ->
+            fill(set, 40, 60, 429, 1179, 30)
+            fill(set, 450, 60, 859, 1179, 30)
+        }
+        val gutter = PageCrop.centreGutter(pixels, w, h, PageCrop.contentBounds(pixels, w, h))
+        assertTrue("gutter should be found near 440, was $gutter", gutter != null && gutter in 430..450)
+    }
+
+    @Test
+    fun `a page with no gutter is not splittable`() {
+        val w = 900
+        val h = 1240
+        // The cases that used to be cut down the middle and shouldn't be.
+        val splash = page(w, h) { set -> fill(set, 40, 60, 859, 1179, 30) }
+        assertNull(PageCrop.centreGutter(splash, w, h, PageCrop.contentBounds(splash, w, h)))
+
+        val hairline = page(w, h) { set ->
+            fill(set, 40, 60, 447, 1179, 30)
+            fill(set, 452, 60, 859, 1179, 30)
+        }
+        assertNull(
+            "4px between two panels of one strip is not a gutter",
+            PageCrop.centreGutter(hairline, w, h, PageCrop.contentBounds(hairline, w, h)),
+        )
+
+        val bubbleAcross = page(w, h) { set ->
+            fill(set, 40, 60, 429, 1179, 30)
+            fill(set, 450, 60, 859, 1179, 30)
+            fill(set, 300, 500, 600, 700, 20)   // a speech bubble straddling the gutter
+        }
+        assertNull(
+            "a bubble across the gutter means the strips are joined",
+            PageCrop.centreGutter(bubbleAcross, w, h, PageCrop.contentBounds(bubbleAcross, w, h)),
+        )
     }
 
     @Test

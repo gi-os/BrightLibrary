@@ -69,7 +69,7 @@ internal fun ComicPageCanvas(
     active: Boolean,
     viewportW: Float,
     viewportH: Float,
-    onMeasured: (maxScroll: Float, contentHeight: Float) -> Unit,
+    onMeasured: (maxScroll: Float, contentHeight: Float, splittable: Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val key = "$bookId#$page"  // the bitmap is the whole page; a strip is a source rect over it
@@ -87,7 +87,11 @@ internal fun ComicPageCanvas(
                 val pixels = IntArray(bitmap.width * bitmap.height)
                 bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
                 val bounds = PageCrop.contentBounds(pixels, bitmap.width, bitmap.height)
-                LoadedPage(bitmap.asImageBitmap(), bounds)
+                // Asked once, here: is there a blank band down the middle of this page? That is what
+                // decides whether it can be read as two strips, and it is far too expensive to ask on
+                // every frame.
+                val gutter = PageCrop.centreGutter(pixels, bitmap.width, bitmap.height, bounds)
+                LoadedPage(bitmap.asImageBitmap(), bounds, gutter)
             }.getOrNull()
         }
         if (result != null) {
@@ -114,13 +118,17 @@ internal fun ComicPageCanvas(
     // Cut *after* the crop, deliberately: the paper margin is not part of a strip, and slicing the
     // uncropped page would hand half the margin to each column. The last column takes the remainder so
     // rounding cannot lose a column of pixels between them.
-    val source = if (parts <= 1 || part < 0) {
+    // Split only where the page actually has a gutter. A splash page, a chapter break or a
+    // double-page spread has no blank band down the middle, and cutting one at the halfway point
+    // slices a drawing in half — so a page that cannot split is simply shown whole, and the reader is
+    // told so it can skip the strip that does not exist.
+    val gutter = image.gutter?.takeIf { it > cropped.left && it < cropped.right }
+    val source = if (parts <= 1 || part < 0 || gutter == null) {
         cropped
+    } else if (part == 0) {
+        cropped.copy(right = gutter)
     } else {
-        val band = cropped.width / parts
-        val left = cropped.left + band * part
-        val right = if (part == parts - 1) cropped.right else left + band
-        cropped.copy(left = left, right = right)
+        cropped.copy(left = gutter)
     }
 
     // All of the arithmetic happens in composition, never in the draw scope: reporting the scroll
@@ -137,7 +145,9 @@ internal fun ComicPageCanvas(
     // Keyed on which page this is, not only on how big it is: a converted volume's pages are all the
     // same pixel size, so keying on the measurement alone meant the effect never re-ran on a page turn
     // and the new page was never measured at all.
-    LaunchedEffect(page, part, parts, limit, drawH, active) { if (active) onMeasured(limit, drawH) }
+    LaunchedEffect(page, part, parts, limit, drawH, active) {
+        if (active) onMeasured(limit, drawH, gutter != null)
+    }
 
     Canvas(Modifier.fillMaxSize()) {
         val x = (viewportW - drawW) / 2f + pan.x
@@ -156,7 +166,12 @@ internal fun ComicPageCanvas(
     }
 }
 
-internal data class LoadedPage(val image: ImageBitmap, val bounds: PageCrop.Bounds)
+internal data class LoadedPage(
+    val image: ImageBitmap,
+    val bounds: PageCrop.Bounds,
+    /** Centre of the white gutter down the middle, or null when the page has none and cannot split. */
+    val gutter: Int?,
+)
 
 /**
  * Decoded pages, kept briefly.

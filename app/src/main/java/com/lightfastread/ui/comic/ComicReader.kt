@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -133,6 +134,22 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     }
     fun stripOf(slot: Int) = if (fourKoma) slot % perPage else -1
 
+    /**
+     * The next slot in reading order, skipping strips that do not exist.
+     *
+     * A page without a gutter has one strip, not two. Until it has been measured nothing knows that,
+     * so its second slot is simply the whole page again — harmless, and corrected the moment the
+     * measurement lands.
+     */
+    fun stepSlot(from: Int, direction: Int): Int {
+        var candidate = from + direction
+        while (candidate in 0 until slots) {
+            if (!fourKoma || stripOf(candidate) == 0 || pageOf(candidate) !in unsplittable) return candidate
+            candidate += direction
+        }
+        return from
+    }
+
     // Deliberately *not* keyed on `fourKoma`: the settings callback converts the slot itself when the
     // mode changes, and re-keying here would throw that away and jump back to wherever the book was
     // opened — which `LaunchedEffect(slot)` would then save as your place.
@@ -141,6 +158,11 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     }
     /** The page being covered up, if a turn is in flight. Never null while one is. */
     var outgoing by remember { mutableStateOf<Outgoing?>(null) }
+
+    // Pages with no gutter down the middle: a splash, a chapter break, a spread. They are shown whole,
+    // and their second strip does not exist, so moving through the book steps over it. Learned as pages
+    // are measured rather than up front — measuring a 200-page volume to open it would be absurd.
+    val unsplittable = remember(bookId) { mutableStateListOf<Int>() }
 
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -188,8 +210,8 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     val stepSizeNow by rememberUpdatedState(stepSize)
 
     val turnTo: (Int) -> Unit = { direction ->
-        val next = slot + direction
-        if (next in 0 until slots && viewportHeight > 0f) {
+        val next = stepSlot(slot, direction)
+        if (next != slot && viewportHeight > 0f) {
             val leaving = Outgoing(slot, scroll.value)
             zoom = 1f
             pan = Offset.Zero
@@ -278,7 +300,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 active = false,
                 viewportW = viewportW,
                 viewportH = viewportH,
-                onMeasured = { _, _ -> },
+                onMeasured = { _, _, _ -> },
             )
             Box(
                 Modifier
@@ -301,9 +323,15 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
             active = true,
             viewportW = viewportW,
             viewportH = viewportH,
-            onMeasured = { limit, height ->
+            onMeasured = { limit, height, splittable ->
                 maxScroll = limit
                 contentHeight = height
+                val page = pageOf(slot)
+                if (splittable) {
+                    unsplittable.remove(page)
+                } else if (page !in unsplittable) {
+                    unsplittable.add(page)
+                }
                 if (landAtBottom) {
                     landAtBottom = false
                     // Turning backwards lands at the *bottom* of the previous page, which is where you
@@ -430,7 +458,15 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                     .align(Alignment.BottomCenter),
             ) {
                 LightText(
-                    text = pageLabel(pageOf(slot), stripOf(slot), perPage, pageCount, steps, stepIndex, rtl),
+                    text = pageLabel(
+                        page = pageOf(slot),
+                        part = if (pageOf(slot) in unsplittable) -1 else stripOf(slot),
+                        parts = perPage,
+                        pageCount = pageCount,
+                        steps = steps,
+                        stepIndex = stepIndex,
+                        rtl = rtl,
+                    ),
                     variant = LightTextVariant.Superfine,
                     lighten = true,
                     align = TextAlign.Center,
