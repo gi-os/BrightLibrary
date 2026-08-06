@@ -23,7 +23,9 @@ import com.gios.light.common.hw.WheelBus
 import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.data.BookKind
 import com.lightfastread.ui.comic.ComicReader
+import android.net.Uri
 import com.lightfastread.ui.home.HomeScreen
+import com.lightfastread.ui.home.SeriesShelf
 import com.lightfastread.ui.library.LibraryScreen
 import com.lightfastread.ui.light.ColorMode
 import com.lightfastread.ui.reader.ReaderScreen
@@ -145,6 +147,10 @@ private fun AppNav() {
                 },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenLibrary = { navController.navigate("library") },
+                // The series *key* travels, not the display name: it is already lowercase and
+                // punctuation-free, so it survives being a path segment without encoding tricks,
+                // and it still identifies the stack after a volume is renamed.
+                onOpenSeries = { key -> navController.navigate("series/${Uri.encode(key)}") },
             )
         }
         composable("settings") {
@@ -152,6 +158,16 @@ private fun AppNav() {
         }
         composable("library") {
             LibraryScreen(onBack = { navController.popBackStack() })
+        }
+        composable("series/{seriesKey}") { backStackEntry ->
+            SeriesShelf(
+                seriesKey = Uri.decode(backStackEntry.arguments?.getString("seriesKey").orEmpty()),
+                onOpenBook = { book ->
+                    val route = if (book.kind == BookKind.Comic) "comic" else "reader"
+                    navController.navigate("$route/${book.id}")
+                },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable("comic/{bookId}") { backStackEntry ->
             ComicReader(

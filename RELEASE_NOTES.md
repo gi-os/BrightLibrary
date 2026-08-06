@@ -1,3 +1,35 @@
+## LightBooks v1.11 — A series is one book on the shelf
+
+Eleven volumes of *To Your Eternity* were eleven cells of the same cover. They are now one, drawn as
+a stack — the first volume's cover with the edges of the others peeking out behind it — and tapping
+it opens a shelf of that series alone, in reading order.
+
+It is the same shelf one level down: same grid, same covers, same long-press for rename, delete or
+reading direction. The only difference is the order, because inside a series the volume order is the
+only order anyone wants; the main shelf stays newest-first.
+
+**Nothing is stored to make this work.** A series is read out of the titles — "BECK, Vol. 3",
+"Bocchi the Rock! v01 (2023) (Digital)", "Love Hina #2" — so a book joins its family the moment it
+is named properly and leaves the moment it isn't, with no hidden field to disagree with what you can
+see. Renaming a volume is therefore also how you move it.
+
+Details that took a few tries:
+
+- **A title merely ending in a number is not a series.** *Fairy Tail: 100 Years Quest* would
+  otherwise become volume 100, and *2001: A Space Odyssey* volume 2001. A volume marker has to be
+  explicit: `Vol. 3`, `Volume 3`, `#3`, `Book 3` or the scanners' `v03`.
+- **Trailing tags are ignored**, since that is how half the world names a file:
+  `(2023) (Digital) (1r0n)`.
+- **One volume is not a stack.** A lone *Parasyte, Vol. 6* stays a book, where it can be seen.
+- **The same series spelled three ways is one stack** — "WIND BREAKER v1" from a publisher,
+  "Wind Breaker, Vol. 2" from Calibre, "wind breaker vol3" off disk. The fullest spelling labels it,
+  and on a tie the one that isn't shouting.
+- **A stack's progress is weighted by length, not counted in volumes.** Finishing one short volume of
+  four does not mean you are a quarter through the series, and a bar that only moves when a volume
+  ends would sit still for most of the time you spend reading.
+
+---
+
 ## LightBooks v1.10.1 — The volume with an afterword is still a comic
 
 **Downloading certain manga killed the app outright.** The crash report says it in one line:

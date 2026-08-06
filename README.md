@@ -16,11 +16,16 @@ rename updates in place — no reinstall, no lost books, and an existing Obtaini
 working without being re-added. Every source package is still `com.lightfastread` too; the
 namespace is load-bearing for the R class and the provider authorities.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.10.1-light.1`.
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.11.0-light.1`.
 CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
 see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ### What's working today
+
+- **Series collect into one cell.** Volumes of the same series are drawn as a stack on the shelf and
+  open into a shelf of their own, in reading order. The series is parsed from the title rather than
+  stored, so naming a book correctly is all it takes to file it — `Vol. 3`, `#3`, `Book 3` or `v03`,
+  with trailing `(Digital)`-style tags ignored. A title that merely ends in a number is left alone.
 
 - **Comics and manga.** CBZ and image-EPUB volumes open in a page reader of their own — right to
   left by default, per-book toggle, tap-thirds to turn, double-tap to zoom, wheel to page. Pages are

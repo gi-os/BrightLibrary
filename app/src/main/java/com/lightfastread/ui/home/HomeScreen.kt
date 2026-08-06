@@ -8,10 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +35,9 @@ import com.lightfastread.data.Book
 import com.lightfastread.data.BookKind
 import com.lightfastread.data.BookRepository
 import com.lightfastread.data.Covers
+import com.lightfastread.data.SeriesTitle
+import com.lightfastread.data.Shelf
+import com.lightfastread.data.ShelfEntry
 import com.lightfastread.data.Importer
 import com.lightfastread.data.SettingsRepository
 import com.gios.light.common.hw.WheelScroll
@@ -52,7 +52,6 @@ import com.lightfastread.ui.light.LightTopBar
 import com.lightfastread.ui.light.designVerticalPxToDp
 import com.lightfastread.ui.light.gridUnitsAsDp
 import com.lightfastread.ui.light.lightClickable
-import com.lightfastread.ui.light.lightCombinedClickable
 import com.lightfastread.ui.light.lightInset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -76,6 +75,7 @@ fun HomeScreen(
     onOpenBook: (Book) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenLibrary: () -> Unit,
+    onOpenSeries: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val repo = remember { BookRepository.get(context) }
@@ -83,6 +83,9 @@ fun HomeScreen(
     val books = repo.books
     val colors = LightThemeTokens.colors
 
+    // Recomputed whenever the shelf changes, which is cheap: a parse of each title and a group-by,
+    // over a list that is tens of items long, not thousands.
+    val entries = remember(books.toList()) { Shelf.entries(books.toList()) }
     var importing by remember { mutableStateOf(false) }
     var importStep by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -220,12 +223,28 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(1f.gridUnitsAsDp()),
                     verticalArrangement = Arrangement.spacedBy(1f.gridUnitsAsDp()),
                 ) {
-                    items(books, key = { it.id }) { book ->
-                        ShelfBook(
-                            book = book,
-                            onClick = { onOpenBook(book) },
-                            onLongClick = { actionsFor = book },
-                        )
+                    items(
+                        items = entries,
+                        // A stack is keyed by its series, a book by its id. Without a stable key
+                        // here, adding a volume would rebuild every cell on the shelf.
+                        key = { entry ->
+                            when (entry) {
+                                is ShelfEntry.Single -> entry.book.id
+                                is ShelfEntry.Stack -> "series:" + SeriesTitle.key(entry.series)
+                            }
+                        },
+                    ) { entry ->
+                        when (entry) {
+                            is ShelfEntry.Single -> ShelfBook(
+                                book = entry.book,
+                                onClick = { onOpenBook(entry.book) },
+                                onLongClick = { actionsFor = entry.book },
+                            )
+                            is ShelfEntry.Stack -> ShelfStack(
+                                stack = entry,
+                                onClick = { onOpenSeries(SeriesTitle.key(entry.series)) },
+                            )
+                        }
                     }
                 }
             }
@@ -337,80 +356,6 @@ fun HomeScreen(
  * next day. A rename clears the timestamp outright, since a new name is a new question.
  */
 private const val COVER_RETRY_MS = 12L * 60 * 60 * 1000
-
-/** Two to a row, as asked. Anything more and the art stops being worth showing. */
-private const val COLUMNS = 2
-
-/** Book covers are 2:3, near enough to every trade paperback ever printed. */
-private const val COVER_ASPECT = 2f / 3f
-
-@Composable
-private fun ShelfBook(
-    book: Book,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-) {
-    val progress = if (book.totalWords > 0) {
-        (book.currentWordIndex.toFloat() / book.totalWords).coerceIn(0f, 1f)
-    } else {
-        0f
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .lightCombinedClickable(onClick = onClick, onLongClick = onLongClick),
-    ) {
-        BookCover(
-            book = book,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(COVER_ASPECT),
-        )
-        // Progress as a rule directly under the cover: the shelf's one piece of state, and the
-        // cheapest possible way to draw it. A Material progress bar would put a grey slab here.
-        ProgressRule(progress)
-        Spacer(Modifier.height(6f.designVerticalPxToDp()))
-        // One line each, deliberately. The LP3 is only ~472dp tall, and a cell of a 2:3 cover plus
-        // two lines of title is taller than the shelf — so nothing of the next row would show and
-        // the shelf would read as holding exactly two books. The cover is the label anyway; this is
-        // the caption under it.
-        LightText(
-            text = book.title,
-            variant = LightTextVariant.Detail,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (book.author.isNotBlank()) {
-            LightText(
-                text = book.author,
-                variant = LightTextVariant.Superfine,
-                lighten = true,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProgressRule(progress: Float) {
-    val colors = LightThemeTokens.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(3f.designVerticalPxToDp())
-            .background(colors.rule),
-    ) {
-        if (progress > 0f) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(progress)
-                    .background(colors.content),
-            )
-        }
-    }
-}
 
 @Composable
 private fun EmptyShelf(modifier: Modifier = Modifier) {
