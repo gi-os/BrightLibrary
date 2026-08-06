@@ -1,3 +1,39 @@
+## LightBooks v1.12 — Manga you can actually read on a 3.9" screen
+
+**Pages now fit the width and scroll, rather than being shrunk whole onto the panel.** A manga page
+was drawn for paper seven inches across; showing all of it on this screen proves it exists but does
+not let you read the lettering. Fitted to the width, the text is the size it was drawn to be and a
+page is about two screens tall.
+
+**The wheel follows the page.** One notch takes you a screen down; the notch after the last one turns
+to the next page. Going backwards lands you at the *bottom* of the previous page, which is where you
+were reading when you left it. A little of the previous screen stays visible on each step, so a line
+of dialogue is never cut in half across two screens.
+
+**Pinch to zoom**, up to 6x, about the point between your fingers rather than the middle of the
+screen — pinching on a speech bubble keeps that bubble under your fingers. Drag to move around a
+zoomed page, double-tap to go back to the fit. A single finger on an unzoomed page scrolls it, and a
+horizontal swipe still turns pages.
+
+**White border cropping**, off by default, in the bar with the fit toggle. It measures where the ink
+actually is and trims the paper around it; on a typical scan that is a fifth of the width back.
+
+Three decisions in the crop worth naming, since each is a way it could have quietly eaten your art:
+
+- **Solid black is ink, not a border.** An earlier version treated near-black as scanner edge, which
+  cost it every black panel and night scene in the book. The price is that a scan framed in black
+  does not crop at all — it shows you the whole page, which is the safe way to be wrong.
+- **Dust is not content.** A line needs 2% ink before it counts, so specks on the glass and JPEG
+  ringing along an edge don't drag the crop out to the paper's corner.
+- **It refuses to crop away more than three quarters of a page.** A page that measures as mostly
+  margin is a measurement gone wrong — a splash of open sky, a faded scan — and blowing the rest up
+  to fill the screen is worse than leaving the margins on.
+
+Both toggles are remembered as the default for the next book. Fit-to-width is on out of the box;
+cropping is not, because it is a guess about somebody else's scan.
+
+---
+
 ## LightBooks v1.11 — A series is one book on the shelf
 
 Eleven volumes of *To Your Eternity* were eleven cells of the same cover. They are now one, drawn as

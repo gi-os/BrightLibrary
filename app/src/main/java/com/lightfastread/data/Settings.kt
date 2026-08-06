@@ -79,4 +79,20 @@ data class Settings(
     val colorCovers: Boolean = true,
     /** The Calibre server the LIBRARY screen browses. Empty until it is set. */
     val calibre: CalibreConfig = CalibreConfig(),
+    /**
+     * Fit a comic page to the screen's *width* and scroll down it, rather than showing the whole
+     * page at once.
+     *
+     * On by default. A manga page shown whole on a 411dp screen is a page of unreadable speech
+     * bubbles — the panel is 3.9 inches and the page was drawn for seven — so the honest default is
+     * the one where the text can be read and the page is scrolled.
+     */
+    val comicFitWidth: Boolean = true,
+    /**
+     * Trim the white paper margin off a scanned page before fitting it.
+     *
+     * Off by default because it is a guess about somebody else's scan, and a wrong guess eats art.
+     * See [com.lightfastread.comic.PageCrop] for what it refuses to do.
+     */
+    val comicCropBorders: Boolean = false,
 )

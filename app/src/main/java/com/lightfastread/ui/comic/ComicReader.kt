@@ -3,11 +3,16 @@ package com.lightfastread.ui.comic
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,18 +36,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.gios.light.common.hw.WheelSteps
 import com.lightfastread.comic.ComicPages
+import com.lightfastread.comic.PageCrop
 import com.lightfastread.data.Book
 import com.lightfastread.data.BookRepository
+import com.lightfastread.data.SettingsRepository
 import com.lightfastread.ui.light.LightBarItem
+import com.lightfastread.ui.light.LightBottomBar
 import com.lightfastread.ui.light.LightIcons
 import com.lightfastread.ui.light.LightText
 import com.lightfastread.ui.light.LightTextVariant
@@ -55,26 +65,34 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * Reading a comic.
  *
- * One page at a time, filling the screen, with no chrome until you ask for it — a scan already has
- * its own margins and page numbers drawn into it, and anything this app puts on top is a second set.
+ * **Fitted to the width by default, and scrolled down.** A manga page shown whole on a 3.9" screen
+ * is a page of unreadable speech bubbles: the page was drawn for paper seven inches across, and
+ * fitting all of it on this panel is a demonstration that it exists rather than a way to read it.
+ * Fitted to the width, the lettering is the size it was drawn to be and the page takes two screens.
  *
- * **Right to left is the default** (see [Book.rightToLeft]). The pager is mirrored rather than
- * reversed by hand: the page shown at pager position `i` is `last - i`, so the pager's own physics —
- * drag, fling, snap — carry over unchanged and a drag towards the right turns to the next page, as
- * it does on paper. Everything outside this file talks in page numbers and never has to know.
+ * The wheel then reads as one gesture: **a notch takes you a screen down the page, and the notch
+ * after the last one takes you to the next page.** No hunting for the bottom, no half-screens of
+ * overlap to lose your place in — each notch lands somewhere deliberate.
  *
- * The wheel is not a spatial gesture, so it ignores direction entirely: down is always the next
- * page. Turning it to go "forwards" and travelling backwards through the book because the volume is
- * Japanese would be indefensible.
+ * Right to left is still the default (see [Book.rightToLeft]) and still done by mirroring the pager,
+ * so a swipe turns pages the way paper does while the wheel ignores direction entirely — down is
+ * always onwards.
+ *
+ * Pinch zooms, a drag pans what is zoomed, a double tap goes back to the fit. The outer thirds of
+ * the screen turn pages, the middle asks for the chrome.
  */
 @Composable
 fun ComicReader(bookId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { BookRepository.get(context) }
+    val settingsRepo = remember { SettingsRepository.get(context) }
+    val settings by settingsRepo.state
     val book = remember(bookId) { repo.getBook(bookId) }
     val colors = LightThemeTokens.colors
 
@@ -87,7 +105,6 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     val rtl = book.rightToLeft
     val lastIndex = pageCount - 1
 
-    // Pager position <-> page number. The only two lines in the file that know about direction.
     fun toPage(position: Int): Int = if (rtl) lastIndex - position else position
     fun toPosition(page: Int): Int = if (rtl) lastIndex - page else page
 
@@ -95,23 +112,49 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
         initialPage = toPosition(book.currentWordIndex.coerceIn(0, lastIndex)),
         pageCount = { pageCount },
     )
+    val scope = rememberCoroutineScope()
+    val currentPage = toPage(pagerState.currentPage)
 
     var showChrome by remember { mutableStateOf(false) }
-    var scale by remember { mutableFloatStateOf(1f) }
-    var pan by remember { mutableStateOf(Offset.Zero) }
-    val currentPage = toPage(pagerState.currentPage)
-    val scope = rememberCoroutineScope()
+    var fitWidth by remember { mutableStateOf(settings.comicFitWidth) }
+    var crop by remember { mutableStateOf(settings.comicCropBorders) }
 
-    /** Move [direction] pages through the *book*, whichever way the pages happen to run. */
+    // Zoom and position live here rather than in the page, so a page turn cannot leave the next page
+    // scrolled to the middle of nowhere.
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var pan by remember { mutableStateOf(Offset.Zero) }
+    var scrollY by remember { mutableFloatStateOf(0f) }
+    var maxScroll by remember { mutableFloatStateOf(0f) }
+
+    /** Move through the book, landing at the top of the next page or the bottom of the previous. */
     val turnPage: (Int) -> Unit = { direction ->
         val next = (currentPage + direction).coerceIn(0, lastIndex)
         if (next != currentPage) {
+            zoom = 1f
+            pan = Offset.Zero
+            // Backwards lands at the *bottom* of the previous page, which is where you were reading
+            // when you left it. Set out of range on purpose: the page's own measurement clamps it
+            // once it knows how tall it is.
+            scrollY = if (direction < 0) Float.MAX_VALUE else 0f
             scope.launch { pagerState.animateScrollToPage(toPosition(next)) }
         }
     }
 
-    // Position is written down as it changes rather than only on the way out: a comic is read in a
-    // sitting that ends by the screen going off, not by anybody pressing back.
+    /**
+     * One notch of the wheel: a screen down the page, or the next page if there is no page left.
+     *
+     * The overlap is deliberate. Landing exactly a screen further would cut the line of dialogue
+     * that straddles the boundary in half and put the halves on different screens.
+     */
+    val scrollOrTurn: (Int, Float) -> Unit = { direction, viewportHeight ->
+        val step = viewportHeight * (1f - SCREEN_OVERLAP)
+        if (direction > 0) {
+            if (scrollY >= maxScroll - 1f) turnPage(1) else scrollY = (scrollY + step).coerceAtMost(maxScroll)
+        } else {
+            if (scrollY <= 1f) turnPage(-1) else scrollY = (scrollY - step).coerceAtLeast(0f)
+        }
+    }
+
     LaunchedEffect(pagerState, bookId) {
         snapshotFlow { pagerState.currentPage }.collect { position ->
             repo.updateProgress(bookId, toPage(position))
@@ -124,14 +167,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     }
     BackHandler(onBack = exit)
 
-    // Zooming out has to also drop the pan, or the next page opens somewhere off its own edge.
-    LaunchedEffect(scale) { if (scale <= 1f) pan = Offset.Zero }
-    // A new page starts unzoomed. Keeping the zoom across a turn sounds convenient and is not: the
-    // panel you were reading is nowhere near the same place on the next page.
-    LaunchedEffect(pagerState.currentPage) {
-        scale = 1f
-        pan = Offset.Zero
-    }
+    LaunchedEffect(zoom) { if (zoom <= 1f) pan = Offset.Zero }
 
     if (showChrome) {
         LaunchedEffect(showChrome, currentPage) {
@@ -140,44 +176,59 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
         }
     }
 
-    WheelPaging(pageCount, turnPage)
-
-    Box(
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(colors.background),
     ) {
+        val viewportW = constraints.maxWidth.toFloat()
+        val viewportH = constraints.maxHeight.toFloat()
+
+        WheelPaging { direction -> scrollOrTurn(direction, viewportH) }
+
         HorizontalPager(
             state = pagerState,
-            // A drag while zoomed in is a pan, not a page turn. Without this the page slides out
-            // from under the thumb the moment you try to read a corner of it.
-            userScrollEnabled = scale <= 1f,
+            // A zoomed page belongs to the fingers on it, not to the pager.
+            userScrollEnabled = zoom <= 1f,
             modifier = Modifier.fillMaxSize(),
         ) { position ->
-            ComicPage(
+            val page = toPage(position)
+            val active = position == pagerState.currentPage
+            ComicPageCanvas(
                 bookId = bookId,
-                page = toPage(position),
-                // Only the page actually being read is zoomed; its neighbours stay at rest so a
-                // half-finished swipe doesn't reveal a magnified next page.
-                scale = if (position == pagerState.currentPage) scale else 1f,
-                pan = if (position == pagerState.currentPage) pan else Offset.Zero,
+                page = page,
+                crop = crop,
+                fitWidth = fitWidth,
+                zoom = if (active) zoom else 1f,
+                pan = if (active) pan else Offset.Zero,
+                scrollY = if (active) scrollY else 0f,
+                viewportW = viewportW,
+                viewportH = viewportH,
+                onMeasured = { limit ->
+                    if (active) {
+                        maxScroll = limit
+                        // A page arriving from a backwards turn asked to start at its bottom before
+                        // anything knew where that was.
+                        scrollY = scrollY.coerceIn(0f, limit)
+                    }
+                },
             )
         }
 
-        // Taps: the outer thirds turn the page, the middle asks for the chrome. Which third is
-        // "next" follows the reading direction, because a tap *is* a spatial gesture.
         Box(
             Modifier
                 .fillMaxSize()
-                .pointerInput(rtl, pageCount, scale) {
+                // Taps first: this detector never consumes a drag, so the gesture handler below and
+                // the pager both still see them.
+                .pointerInput(rtl, pageCount, zoom) {
                     detectTapGestures(
-                        onDoubleTap = { scale = if (scale > 1f) 1f else ZOOM },
+                        onDoubleTap = { zoom = if (zoom > 1f) 1f else DOUBLE_TAP_ZOOM },
                         onTap = { offset ->
                             val third = size.width / 3f
                             val forward = if (rtl) offset.x < third else offset.x > size.width - third
                             val back = if (rtl) offset.x > size.width - third else offset.x < third
                             when {
-                                scale > 1f -> showChrome = !showChrome
+                                zoom > 1f -> showChrome = !showChrome
                                 forward -> turnPage(1)
                                 back -> turnPage(-1)
                                 else -> showChrome = !showChrome
@@ -185,16 +236,45 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                         },
                     )
                 }
-                .pointerInput(scale) {
-                    if (scale <= 1f) return@pointerInput
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        val limitX = size.width * (scale - 1f) / 2f
-                        val limitY = size.height * (scale - 1f) / 2f
-                        pan = Offset(
-                            (pan.x + dragAmount.x).coerceIn(-limitX, limitX),
-                            (pan.y + dragAmount.y).coerceIn(-limitY, limitY),
-                        )
+                .pointerInput(fitWidth) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        var vertical = false
+                        do {
+                            val event = awaitPointerEvent()
+                            val moving = event.changes.any { it.positionChanged() }
+                            if (event.changes.size >= 2) {
+                                // Two fingers is always a zoom, whatever the page is doing.
+                                val factor = event.calculateZoom()
+                                val centroid = event.calculateCentroid(useCurrent = false)
+                                val move = event.calculatePan()
+                                if (factor != 1f || move != Offset.Zero) {
+                                    val before = zoom
+                                    zoom = (zoom * factor).coerceIn(1f, MAX_ZOOM)
+                                    // Zoom about the fingers, not about the middle of the screen:
+                                    // pinching on a speech bubble should keep that bubble under the
+                                    // fingers rather than sending it off the edge.
+                                    val ratio = zoom / before
+                                    pan = (pan + centroid - Offset(size.width / 2f, size.height / 2f)) *
+                                        ratio - (centroid - Offset(size.width / 2f, size.height / 2f)) + move
+                                    event.changes.forEach { it.consume() }
+                                }
+                            } else if (moving) {
+                                val drag = event.changes.first()
+                                val delta = drag.position - drag.previousPosition
+                                val canScroll = maxScroll > 0f
+                                // A single finger scrolls the page when there is page to scroll, and
+                                // is left alone otherwise so the pager can turn a page with it.
+                                if (zoom > 1f) {
+                                    pan += delta
+                                    drag.consume()
+                                } else if ((vertical || abs(delta.y) > abs(delta.x)) && canScroll) {
+                                    vertical = true
+                                    scrollY = (scrollY - delta.y).coerceIn(0f, maxScroll)
+                                    drag.consume()
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
                     }
                 },
         )
@@ -212,116 +292,184 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                     left = LightBarItem.Icon(LightIcons.Back, onClick = exit),
                 )
             }
-            LightText(
-                text = "${currentPage + 1} / $pageCount" + if (rtl) "  ←" else "",
-                variant = LightTextVariant.Superfine,
-                lighten = true,
-                align = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
+            Column(
+                Modifier
                     .fillMaxWidth()
                     .background(colors.background)
-                    .padding(horizontal = lightInset(), vertical = 10f.designVerticalPxToDp()),
-            )
+                    .align(Alignment.BottomCenter),
+            ) {
+                LightText(
+                    text = "${currentPage + 1} / $pageCount" + if (rtl) "  ←" else "",
+                    variant = LightTextVariant.Superfine,
+                    lighten = true,
+                    align = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = lightInset(), vertical = 6f.designVerticalPxToDp()),
+                )
+                // The two things worth changing while reading, and nothing else. Both are remembered
+                // as the default for the next book you open.
+                LightBottomBar(
+                    items = listOf(
+                        LightBarItem.Text(
+                            text = if (fitWidth) "FIT WIDTH" else "FIT PAGE",
+                            active = fitWidth,
+                            onClick = {
+                                fitWidth = !fitWidth
+                                zoom = 1f
+                                pan = Offset.Zero
+                                scrollY = 0f
+                                settingsRepo.update { it.copy(comicFitWidth = fitWidth) }
+                            },
+                        ),
+                        LightBarItem.Text(
+                            text = "CROP",
+                            active = crop,
+                            onClick = {
+                                crop = !crop
+                                scrollY = 0f
+                                settingsRepo.update { it.copy(comicCropBorders = crop) }
+                            },
+                        ),
+                    ),
+                )
+            }
         }
     }
 }
 
 /**
- * Turn the page from the wheel.
+ * One page, drawn by hand.
  *
- * Split out because the notch counting is fiddly and has nothing to do with layout. Same three
- * notches per page as the text reader: the sensor fires about every 35ms, so one notch per page
- * sends a deliberate quarter-turn of the thumb through half a chapter.
+ * A `Canvas` rather than an `Image` because four things have to agree about the same rectangle —
+ * the crop, the fit, the zoom and the scroll — and expressing them as one source rect and one
+ * destination rect is the only version of this that can be reasoned about. Nested `ContentScale` and
+ * `graphicsLayer` transforms multiply in an order that is easy to get subtly wrong and impossible to
+ * debug on a phone.
  */
 @Composable
-private fun WheelPaging(pageCount: Int, onTurn: (Int) -> Unit) {
+private fun ComicPageCanvas(
+    bookId: String,
+    page: Int,
+    crop: Boolean,
+    fitWidth: Boolean,
+    zoom: Float,
+    pan: Offset,
+    scrollY: Float,
+    viewportW: Float,
+    viewportH: Float,
+    onMeasured: (maxScroll: Float) -> Unit,
+) {
+    val context = LocalContext.current
+    val key = "$bookId#$page"
+    var loaded by remember(key) { mutableStateOf(PageCache.get(key)) }
+
+    LaunchedEffect(key) {
+        if (loaded != null) return@LaunchedEffect
+        val result = withContext(Dispatchers.IO) {
+            val file = ComicPages.pageFile(context, bookId, page)
+            if (!file.exists()) return@withContext null
+            runCatching {
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return@runCatching null
+                // Measured once, here, while the pixels are already in hand — and kept with the
+                // page, so toggling the crop back and forth costs nothing.
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                val bounds = PageCrop.contentBounds(pixels, bitmap.width, bitmap.height)
+                LoadedPage(bitmap.asImageBitmap(), bounds)
+            }.getOrNull()
+        }
+        if (result != null) {
+            PageCache.put(key, result)
+            loaded = result
+        }
+    }
+
+    val image = loaded
+    if (image == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            LightText("${page + 1}", LightTextVariant.Detail, lighten = true)
+        }
+        return
+    }
+
+    val source = if (crop) image.bounds else PageCrop.Bounds(0, 0, image.image.width, image.image.height)
+
+    // All of the arithmetic happens in composition, never in the draw scope: reporting the scroll
+    // limit from inside `Canvas` would be a state write during drawing, which is how a reader ends
+    // up in an invalidation loop that only shows itself on a real device.
+    val srcW = source.width.toFloat().coerceAtLeast(1f)
+    val srcH = source.height.toFloat().coerceAtLeast(1f)
+    val base = if (fitWidth) viewportW / srcW else minOf(viewportW / srcW, viewportH / srcH)
+    val scale = base * zoom
+    val drawW = srcW * scale
+    val drawH = srcH * scale
+    val limit = max(0f, drawH - viewportH)
+
+    LaunchedEffect(limit) { onMeasured(limit) }
+
+    Canvas(Modifier.fillMaxSize()) {
+        val x = (viewportW - drawW) / 2f + pan.x
+        val y = if (limit <= 0f) (viewportH - drawH) / 2f + pan.y else -scrollY.coerceIn(0f, limit) + pan.y
+        drawImage(
+            image = image.image,
+            srcOffset = IntOffset(source.left, source.top),
+            srcSize = IntSize(source.width, source.height),
+            dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
+            dstSize = IntSize(drawW.roundToInt().coerceAtLeast(1), drawH.roundToInt().coerceAtLeast(1)),
+            // Bilinear: a zoomed page is scaled *up* past the panel's own resolution, and
+            // nearest-neighbour on line art at 2x looks like a fax.
+            filterQuality = FilterQuality.Low,
+        )
+    }
+}
+
+private data class LoadedPage(val image: ImageBitmap, val bounds: PageCrop.Bounds)
+
+private object PageCache {
+    private val cache = LruCache<String, LoadedPage>(5)
+    fun get(key: String): LoadedPage? = cache.get(key)
+    fun put(key: String, value: LoadedPage) = cache.put(key, value)
+}
+
+/**
+ * Turn the wheel into one step per notch-and-a-bit.
+ *
+ * Same three notches per step as the text reader: the sensor fires roughly every 35ms, so one notch
+ * per step sends a deliberate quarter-turn of the thumb through half a chapter.
+ */
+@Composable
+private fun WheelPaging(onStep: (Int) -> Unit) {
     var banked by remember { mutableIntStateOf(0) }
     var lastNotchAtMs by remember { mutableLongStateOf(0L) }
     var pending by remember { mutableIntStateOf(0) }
-    val turn by rememberUpdatedState(onTurn)
+    val step by rememberUpdatedState(onStep)
 
-    WheelSteps(notchesPerStep = 1, minIntervalMs = 0) { step ->
-        if (pageCount > 1) {
-            val now = System.currentTimeMillis()
-            val stale = now - lastNotchAtMs > WHEEL_IDLE_MS
-            val reversed = banked != 0 && (banked > 0) != (step > 0)
-            lastNotchAtMs = now
-            banked = if (stale || reversed) step else banked + step
-            if (abs(banked) >= NOTCHES_PER_PAGE) {
-                pending = if (banked > 0) 1 else -1
-                banked = 0
-            }
+    WheelSteps(notchesPerStep = 1, minIntervalMs = 0) { notch ->
+        val now = System.currentTimeMillis()
+        val stale = now - lastNotchAtMs > WHEEL_IDLE_MS
+        val reversed = banked != 0 && (banked > 0) != (notch > 0)
+        lastNotchAtMs = now
+        banked = if (stale || reversed) notch else banked + notch
+        if (abs(banked) >= NOTCHES_PER_STEP) {
+            pending = if (banked > 0) 1 else -1
+            banked = 0
         }
     }
     LaunchedEffect(pending) {
         if (pending == 0) return@LaunchedEffect
-        turn(pending)
+        step(pending)
         pending = 0
     }
 }
 
-/**
- * One page, decoded from its stored file.
- *
- * Held in a tiny cache keyed by book and page: the pager keeps neighbours composed, and a decode
- * per recomposition would mean re-reading a JPEG on every frame of a drag. Five entries covers the
- * page either side of the one being read with room to spare, and each is at most the size of the
- * screen — see [ComicPages].
- */
-@Composable
-private fun ComicPage(bookId: String, page: Int, scale: Float, pan: Offset) {
-    val context = LocalContext.current
-    val key = "$bookId#$page"
-    var bitmap by remember(key) { mutableStateOf(PageCache.get(key)) }
+/** How much of the previous screen stays visible after a scroll, so a line is never cut in half. */
+private const val SCREEN_OVERLAP = 0.08f
 
-    LaunchedEffect(key) {
-        if (bitmap != null) return@LaunchedEffect
-        val decoded = withContext(Dispatchers.IO) {
-            val file = ComicPages.pageFile(context, bookId, page)
-            if (!file.exists()) return@withContext null
-            runCatching { BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() }.getOrNull()
-        }
-        if (decoded != null) {
-            PageCache.put(key, decoded)
-            bitmap = decoded
-        }
-    }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val image = bitmap
-        if (image != null) {
-            Image(
-                bitmap = image,
-                contentDescription = null,
-                // Fit, never crop. A cropped page loses the edge of a panel, and on manga the edge
-                // of the panel is frequently where the dialogue is.
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = pan.x,
-                        translationY = pan.y,
-                    ),
-            )
-        } else {
-            LightText("${page + 1}", LightTextVariant.Detail, lighten = true)
-        }
-    }
-}
-
-private object PageCache {
-    private val cache = LruCache<String, ImageBitmap>(5)
-    fun get(key: String): ImageBitmap? = cache.get(key)
-    fun put(key: String, value: ImageBitmap) = cache.put(key, value)
-}
-
-/** Enough to read a speech bubble on a 411dp screen without becoming a magnifying-glass hunt. */
-private const val ZOOM = 2.5f
-
-private const val NOTCHES_PER_PAGE = 3
+private const val DOUBLE_TAP_ZOOM = 2.5f
+private const val MAX_ZOOM = 6f
+private const val NOTCHES_PER_STEP = 3
 private const val WHEEL_IDLE_MS = 1_500L
 private const val CHROME_VISIBLE_MS = 4_000L
