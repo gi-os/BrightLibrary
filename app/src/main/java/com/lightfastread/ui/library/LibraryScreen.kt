@@ -203,7 +203,11 @@ fun LibraryScreen(onBack: () -> Unit) {
 
                 error != null -> Notice(
                     "Cannot read the catalogue",
-                    error.orEmpty(),
+                    // The address is part of the error. A failure that names a server you did not
+                    // expect is solved in a second; one that says only "cannot connect" is not.
+                    error.orEmpty() + "\n\n" + runCatching {
+                        CalibreClient.catalogUrl(config.baseUrl)
+                    }.getOrElse { config.baseUrl },
                     Modifier.align(Alignment.Center),
                 )
 

@@ -190,7 +190,11 @@ class CalibreClient(private val config: CalibreConfig) {
         val connection = try {
             URL(url).openConnection() as HttpURLConnection
         } catch (e: Exception) {
-            throw IOException("“$url” is not a URL this phone can open.", e)
+            // The cause is named, not swallowed. "That is not a URL this phone can open" was true
+            // and useless: it covers a missing scheme, a host Android refuses, and a cleartext
+            // policy rejection, and on a phone with no logcat attached the message is the whole
+            // diagnosis. Both the URL and what the platform actually said now reach the screen.
+            throw IOException("Cannot open “$url” — ${e.javaClass.simpleName}: ${e.message}", e)
         }
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS

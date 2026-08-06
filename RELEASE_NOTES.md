@@ -1,12 +1,16 @@
-## LightBooks v1.9.1 — A scanned code saves itself
+## LightBooks v1.9.1 — A scanned code saves itself, and errors say what went wrong
 
 Scanning the setup code filled in the four fields and then, if you left the page without pressing
 SAVE, kept none of them. That looks exactly like being set up, so leaving is the natural thing to
 do — and the next thing you see is the library failing to load. A scan now writes the settings down
 the moment it succeeds and says "Saved."; the fields stay on screen if you want to check them.
 
-The 401 that followed said "check the username and password", which was misleading: what actually
-happened is that no username was sent at all. It now says so, and where to fix it.
+Two error messages were also hiding the thing worth knowing. A 401 said "check the username and
+password" whether or not a username had been sent at all — it now distinguishes "no account is set"
+from "the server refused this one". And a URL the phone could not open said only that it could not
+open it, swallowing the platform's own reason: a missing scheme, a refused host and a cleartext
+policy rejection all looked identical. The exception and its message now reach the screen, and the
+LIBRARY failure prints the address it actually tried.
 
 ---
 
