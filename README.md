@@ -16,11 +16,20 @@ rename updates in place — no reinstall, no lost books, and an existing Obtaini
 working without being re-added. Every source package is still `com.lightfastread` too; the
 namespace is load-bearing for the R class and the provider authorities.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.8.0-light.1`.
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.9.0-light.1`.
 CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
 see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ### What's working today
+
+- **Comics and manga.** CBZ and image-EPUB volumes open in a page reader of their own — right to
+  left by default, per-book toggle, tap-thirds to turn, double-tap to zoom, wheel to page. Pages are
+  converted to greyscale at the panel's own resolution on import, so a 250 MB volume is about 20 MB
+  on the phone and a page turn is a file read. Whether a file is a comic is decided by looking at it:
+  mostly images and almost no text.
+- **Setup by QR code.** Settings → Calibre → SCAN QR CODE fills in the server address, username,
+  password and Kobo sync URL from one code, using ML Kit's bundled barcode model (LightOS has no
+  Play Services). A plain calibre-web sync URL works too and fills in the address with it.
 
 - **Your Calibre library, over OPDS.** LIBRARY on the shelf's bottom bar browses a Calibre server —
   calibre-web, `calibre-server` or COPS, they all publish the same catalogue — and downloads a book

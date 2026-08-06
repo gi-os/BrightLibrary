@@ -29,6 +29,15 @@
       the one address it is most likely to be pointed at. Everything else the app talks to - GitHub,
       Open Library - is https regardless of this flag.
     -->
+    <!--
+      The camera reads one thing: a QR code carrying the Calibre server settings (Settings ->
+      Calibre -> SCAN QR CODE). Nothing is stored, nothing is uploaded, and the preview lives only
+      as long as that screen. Optional as a feature so the app still installs on a device with no
+      camera at all.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

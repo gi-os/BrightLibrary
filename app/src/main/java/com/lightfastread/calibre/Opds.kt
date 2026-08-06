@@ -50,6 +50,11 @@ object Opds {
         "application/x-mobipocket-ebook" to "mobi",
         "application/vnd.amazon.ebook" to "azw3",
         "application/x-mobi8-ebook" to "azw3",
+        // Comics, added in v1.9. Last in the list so a volume published as both an image EPUB and a
+        // CBZ downloads as the EPUB, whose spine gives a reliable page order — a CBZ has only its
+        // file names to go on.
+        "application/x-cbz" to "cbz",
+        "application/vnd.comicbook+zip" to "cbz",
     )
 
     fun parse(xml: String, baseUrl: String): OpdsFeed {
@@ -218,7 +223,10 @@ data class OpdsEntry(
             acquisitions.firstOrNull { it.type.startsWith(mime) }?.let { return it to ext }
         }
         for (link in acquisitions) {
-            val ext = link.href.substringAfterLast('/').substringAfterLast('.', "").lowercase()
+            // calibre-web serves `/opds/download/160/cbz/` — a trailing slash and no dot anywhere,
+            // so the last *segment* is the format rather than a file extension.
+            val tail = link.href.trimEnd('/').substringAfterLast('/').lowercase()
+            val ext = if ('.' in tail) tail.substringAfterLast('.') else tail
             if (ext in READABLE_EXTENSIONS) return link to ext
         }
         return null
@@ -228,7 +236,7 @@ data class OpdsEntry(
     fun formatLabel(): String? = bestDownload()?.second?.uppercase()
 
     private companion object {
-        val READABLE_EXTENSIONS = setOf("epub", "mobi", "azw", "azw3")
+        val READABLE_EXTENSIONS = setOf("epub", "mobi", "azw", "azw3", "cbz")
     }
 }
 

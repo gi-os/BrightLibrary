@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import com.lightfastread.calibre.ProgressSync
+import com.lightfastread.comic.ComicPages
 import com.lightfastread.parser.HtmlStripper
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -92,8 +93,33 @@ class BookRepository private constructor(private val appContext: Context) {
         return result
     }
 
+    /**
+     * Put a comic on the shelf.
+     *
+     * Separate from [addBook] because there is no text to write: the pages were converted into
+     * `filesDir/comics/<id>` before this is called, and that directory is the book.
+     */
+    fun addComic(book: Book) {
+        books.add(0, book)
+        persist()
+    }
+
+    /**
+     * Flip a comic between right-to-left and left-to-right.
+     *
+     * Per book rather than a setting: a shelf holds manga and Western scans at once, and the right
+     * answer is a property of the volume, not of the reader.
+     */
+    fun setReadingDirection(id: String, rightToLeft: Boolean) {
+        val idx = books.indexOfFirst { it.id == id }
+        if (idx < 0 || books[idx].rightToLeft == rightToLeft) return
+        books[idx] = books[idx].copy(rightToLeft = rightToLeft)
+        persist()
+    }
+
     fun deleteBook(book: Book) {
         textFile(book).delete()
+        if (book.kind == BookKind.Comic) ComicPages.delete(appContext, book.id)
         Covers.delete(appContext, book)
         books.removeAll { it.id == book.id }
         persist()

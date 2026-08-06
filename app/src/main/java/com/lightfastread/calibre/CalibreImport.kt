@@ -5,8 +5,8 @@ import com.lightfastread.data.Book
 import com.lightfastread.data.BookRepository
 import com.lightfastread.data.CalibreConfig
 import com.lightfastread.data.Covers
-import com.lightfastread.parser.BookParser
-import java.util.UUID
+import com.lightfastread.data.Importer
+import java.io.File
 
 /**
  * Getting a book off the server and onto the shelf.
@@ -15,9 +15,12 @@ import java.util.UUID
  * of these steps is the interesting part, and because two of them are allowed to fail without the
  * import failing.
  *
- * The order: download, parse, add, cover, position. The book is on the shelf before the cover is
- * fetched and before the server is asked where it left off, so a slow or half-broken server costs a
- * cover or a resume point rather than the book.
+ * The order: download, import, cover, position. The book is on the shelf before the cover is fetched
+ * and before the server is asked where it left off, so a slow or half-broken server costs a cover or
+ * a resume point rather than the book.
+ *
+ * The download goes to a file rather than to memory, because since v1.9 a "book" may be a 250 MB
+ * comic — see [CalibreClient.download] and [Importer].
  */
 object CalibreImport {
 
@@ -34,7 +37,12 @@ object CalibreImport {
         data class Failed(val message: String) : Result
     }
 
-    fun download(context: Context, config: CalibreConfig, entry: OpdsEntry): Result {
+    fun download(
+        context: Context,
+        config: CalibreConfig,
+        entry: OpdsEntry,
+        progress: Importer.Progress = Importer.Progress { _, _ -> },
+    ): Result {
         val repo = BookRepository.get(context)
         entry.uuid?.let { uuid ->
             repo.books.firstOrNull { it.calibreUuid == uuid }?.let { return Result.AlreadyOnShelf(it) }
@@ -44,51 +52,47 @@ object CalibreImport {
             ?: return Result.Failed("“${entry.title}” is not in a format this app can read.")
 
         val client = CalibreClient(config)
-        val bytes = try {
-            client.bytes(link.href)
+        val staged = File(context.cacheDir, "calibre-${System.currentTimeMillis()}.$ext")
+        try {
+            client.download(link.href, staged)
         } catch (e: Exception) {
+            staged.delete()
             return Result.Failed(e.message ?: "Download failed.")
         }
 
-        val parsed = try {
-            BookParser.parseBytes(bytes, "${entry.title.ifBlank { "book" }}.$ext")
-        } catch (e: Exception) {
-            return Result.Failed(e.message ?: "That file would not parse.")
+        val imported = try {
+            Importer.importFile(
+                context = context,
+                file = staged,
+                displayName = "${entry.title.ifBlank { "book" }}.$ext",
+                // Calibre's metadata over the file's own, deliberately: a Calibre library has been
+                // curated, and the title inside an EPUB is frequently a filename or a marketing
+                // subtitle. A CBZ carries no metadata at all, so for comics this is the only source.
+                title = entry.title,
+                author = entry.author,
+                calibreUuid = entry.uuid,
+                progress = progress,
+            )
+        } finally {
+            staged.delete()
         }
 
-        val words = BookRepository.countWords(parsed.text)
-        if (words == 0) return Result.Failed("No readable text in “${entry.title}”.")
-
-        val id = UUID.randomUUID().toString()
-        val book = Book(
-            id = id,
-            // Calibre's metadata over the file's own, deliberately: a Calibre library has been
-            // curated, and the title inside an EPUB is frequently a filename or a marketing
-            // subtitle. This is also what makes the cover search work if it comes to that.
-            title = entry.title.ifBlank { parsed.title }.ifBlank { "Untitled" },
-            author = entry.author.ifBlank { parsed.author },
-            format = parsed.format,
-            textFileName = "$id.txt",
-            totalWords = words,
-            chapters = repo.chaptersFromCharOffsets(
-                parsed.text,
-                parsed.chapters.map { it.title to it.charOffset },
-            ),
-            calibreUuid = entry.uuid,
-        )
-        repo.addBook(book, parsed.text)
+        val book = when (imported) {
+            is Importer.Result.Failed -> return Result.Failed(imported.message)
+            is Importer.Result.Added -> imported.book
+        }
 
         // Calibre's cover before the file's own: it is the same image in the common case, and where
         // it differs it is because somebody fixed it in Calibre. Either way this is a cover in hand,
         // so no Open Library lookup is ever needed for a book that came from the library.
-        val cover = entry.coverHref?.let { href ->
+        entry.coverHref?.let { href ->
             runCatching { client.bytes(href, MAX_COVER_BYTES) }.getOrNull()
-        }?.takeIf { Covers.looksLikeImage(it) }
-            ?: parsed.coverImage?.takeIf { Covers.looksLikeImage(it) }
-        if (cover != null) repo.setCover(id, cover)
+                ?.takeIf { Covers.looksLikeImage(it) }
+                ?.let { repo.setCover(book.id, it) }
+        }
 
         val resumed = runCatching { ProgressSync.adopt(context, book) }.getOrNull()
-        return Result.Added(repo.getBook(id) ?: book, resumed)
+        return Result.Added(repo.getBook(book.id) ?: book, resumed)
     }
 
     private const val MAX_COVER_BYTES = 8L * 1024 * 1024

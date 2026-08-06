@@ -35,11 +35,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.lightfastread.data.Book
+import com.lightfastread.data.BookKind
 import com.lightfastread.data.BookRepository
 import com.lightfastread.data.Covers
+import com.lightfastread.data.Importer
 import com.lightfastread.data.SettingsRepository
 import com.gios.light.common.hw.WheelScroll
-import com.lightfastread.parser.BookParser
 import com.lightfastread.ui.light.ColourEffect
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightBottomBar
@@ -56,7 +57,6 @@ import com.lightfastread.ui.light.lightInset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
 /**
  * The shelf.
@@ -84,6 +84,7 @@ fun HomeScreen(
     val colors = LightThemeTokens.colors
 
     var importing by remember { mutableStateOf(false) }
+    var importStep by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var actionsFor by remember { mutableStateOf<Book?>(null) }
     var renaming by remember { mutableStateOf<Book?>(null) }
@@ -163,32 +164,32 @@ fun HomeScreen(
         status = null
         scope.launch {
             try {
-                val parsed = withContext(Dispatchers.IO) { BookParser.parse(context, uri) }
-                val words = BookRepository.countWords(parsed.text)
-                if (words == 0) throw IllegalStateException("No readable text found in file")
-                val id = UUID.randomUUID().toString()
-                val rawPairs = parsed.chapters.map { it.title to it.charOffset }
-                val chapters = repo.chaptersFromCharOffsets(parsed.text, rawPairs)
-                val book = Book(
-                    id = id,
-                    title = parsed.title.ifBlank { "Untitled" },
-                    author = parsed.author,
-                    format = parsed.format,
-                    textFileName = "$id.txt",
-                    totalWords = words,
-                    currentWordIndex = 0,
-                    chapters = chapters,
-                )
-                withContext(Dispatchers.IO) { repo.addBook(book, parsed.text) }
-
-                // The file's own art first — it is the publisher's cover, already in hand.
-                val embedded = parsed.coverImage?.takeIf { Covers.looksLikeImage(it) }
-                val stored = embedded != null &&
-                    withContext(Dispatchers.IO) { repo.setCover(id, embedded) }
+                // Copied to a file before anything looks at it. A comic is a 250 MB archive that has
+                // to be opened as a zip, and a `content://` stream is neither seekable nor something
+                // to hold in memory — see [Importer].
+                val staged = withContext(Dispatchers.IO) { Importer.cacheCopy(context, uri) }
+                val name = Importer.displayName(context, uri) ?: staged.name
+                val result = try {
+                    withContext(Dispatchers.IO) {
+                        Importer.importFile(context, staged, name) { done, total ->
+                            // Converting a volume's pages takes a minute or more, and silence for a
+                            // minute reads as a hang.
+                            importStep = if (total > 0) "Converting page $done of $total…" else null
+                        }
+                    }
+                } finally {
+                    withContext(Dispatchers.IO) { staged.delete() }
+                }
                 importing = false
-                if (!stored) fetchCover(book)
+                importStep = null
+                when (result) {
+                    is Importer.Result.Added ->
+                        if (result.book.kind == BookKind.Text) fetchCover(result.book)
+                    is Importer.Result.Failed -> status = result.message
+                }
             } catch (e: Exception) {
                 importing = false
+                importStep = null
                 status = e.message ?: "Failed to import"
             }
         }
@@ -233,7 +234,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize().background(colors.background),
                     contentAlignment = Alignment.Center,
                 ) {
-                    LightText("Importing…", LightTextVariant.Copy)
+                    LightText(importStep ?: "Importing…", LightTextVariant.Copy)
                 }
             }
         }
@@ -264,6 +265,9 @@ fun HomeScreen(
                             arrayOf(
                                 "application/epub+zip",
                                 "application/x-mobipocket-ebook",
+                                "application/x-cbz",
+                                "application/vnd.comicbook+zip",
+                                "application/zip",
                                 "application/octet-stream",
                                 "*/*",
                             )
@@ -290,6 +294,15 @@ fun HomeScreen(
             onRename = {
                 actionsFor = null
                 renaming = book
+            },
+            onFlipDirection = {
+                actionsFor = null
+                repo.setReadingDirection(book.id, !book.rightToLeft)
+                status = if (book.rightToLeft) {
+                    "“${book.title}” now reads left to right"
+                } else {
+                    "“${book.title}” now reads right to left"
+                }
             },
             onDelete = {
                 actionsFor = null

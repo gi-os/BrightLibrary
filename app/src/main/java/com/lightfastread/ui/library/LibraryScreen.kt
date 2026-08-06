@@ -86,6 +86,7 @@ fun LibraryScreen(onBack: () -> Unit) {
     var status by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
     var busyWith by remember { mutableStateOf<String?>(null) }
+    var busyStep by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     WheelScroll(listState)
 
@@ -141,9 +142,14 @@ fun LibraryScreen(onBack: () -> Unit) {
                 status = null
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
-                        CalibreImport.download(context, config, entry)
+                        CalibreImport.download(context, config, entry) { done, total ->
+                            // A comic is converted page by page after it lands, which takes a minute
+                            // or more — long enough that "Downloading…" alone reads as a hang.
+                            busyStep = if (total > 0) "Converting page $done of $total…" else null
+                        }
                     }
                     busyWith = null
+                    busyStep = null
                     status = when (result) {
                         is CalibreImport.Result.Added ->
                             if (result.resumedAtWord != null) {
@@ -184,7 +190,7 @@ fun LibraryScreen(onBack: () -> Unit) {
                 )
 
                 busyWith != null -> Notice(
-                    "Downloading…",
+                    busyStep ?: "Downloading…",
                     busyWith.orEmpty(),
                     Modifier.align(Alignment.Center),
                 )

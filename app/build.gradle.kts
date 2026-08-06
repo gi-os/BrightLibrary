@@ -11,7 +11,7 @@ plugins {
 // Single source of truth for the version. The CI workflow greps
 // `baseVersionName` out of this file to name the APK artifacts, so keep it as a
 // plain string literal.
-val baseVersionName = "1.8.0-light.1"
+val baseVersionName = "1.9.0-light.1"
 val ciRunNumber: Int? = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -141,6 +141,16 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.documentfile)
     implementation(libs.kotlinx.serialization.json)
+
+    // Reading one QR code: the four Calibre settings without typing them. CameraX for the preview
+    // and the analysis loop, ML Kit's *bundled* barcode model for the decode - the Play-services
+    // variant downloads its model on first use, and LightOS has no Play Services to download it
+    // from, so it would wait forever on the one phone this app is for.
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

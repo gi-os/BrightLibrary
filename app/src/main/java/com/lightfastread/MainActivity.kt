@@ -21,6 +21,8 @@ import com.gios.light.common.hw.LightKeys
 import com.gios.light.common.hw.LocalWheelBus
 import com.gios.light.common.hw.WheelBus
 import com.lightfastread.calibre.ProgressSync
+import com.lightfastread.data.BookKind
+import com.lightfastread.ui.comic.ComicReader
 import com.lightfastread.ui.home.HomeScreen
 import com.lightfastread.ui.library.LibraryScreen
 import com.lightfastread.ui.light.ColorMode
@@ -134,7 +136,13 @@ private fun AppNav() {
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
-                onOpenBook = { book -> navController.navigate("reader/${book.id}") },
+                // Which reader opens is a property of the book, decided here rather than inside
+                // ReaderScreen: a comic has no words to load, so the text reader should never be
+                // built for one at all.
+                onOpenBook = { book ->
+                    val route = if (book.kind == BookKind.Comic) "comic" else "reader"
+                    navController.navigate("$route/${book.id}")
+                },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenLibrary = { navController.navigate("library") },
             )
@@ -144,6 +152,12 @@ private fun AppNav() {
         }
         composable("library") {
             LibraryScreen(onBack = { navController.popBackStack() })
+        }
+        composable("comic/{bookId}") { backStackEntry ->
+            ComicReader(
+                bookId = backStackEntry.arguments?.getString("bookId").orEmpty(),
+                onBack = { navController.popBackStack() },
+            )
         }
         composable("reader/{bookId}") { backStackEntry ->
             val bookId = backStackEntry.arguments?.getString("bookId").orEmpty()

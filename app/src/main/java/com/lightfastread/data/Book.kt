@@ -2,6 +2,17 @@ package com.lightfastread.data
 
 import kotlinx.serialization.Serializable
 
+/**
+ * What kind of thing a book is, and therefore which reader opens it.
+ *
+ * [Comic] covers CBZ and the image EPUBs a scanned manga volume ships as. The distinction is not
+ * cosmetic: a comic has no words at all, so every text-shaped thing in this app — pagination, RSVP,
+ * bionic reading, font size — is meaningless for one, and a comic opened in the text reader is a
+ * hundred blank pages.
+ */
+@Serializable
+enum class BookKind { Text, Comic }
+
 @Serializable
 data class Chapter(
     val title: String,
@@ -15,6 +26,14 @@ data class Book(
     val author: String = "",
     val format: String,
     val textFileName: String,
+    /**
+     * Words in the book — or, for a [BookKind.Comic], **pages**.
+     *
+     * Reused rather than given a parallel `pageCount` on purpose: progress, the shelf's hairline,
+     * the percentage pushed to Calibre and the resume position are all expressed in terms of these
+     * two fields, and a second pair would mean every one of those grew a branch. A comic is a book
+     * whose unit of progress happens to be a page.
+     */
     val totalWords: Int,
     val currentWordIndex: Int = 0,
     val addedAtMs: Long = System.currentTimeMillis(),
@@ -60,4 +79,13 @@ data class Book(
      * because "never pushed" and "pushed a position at the very start" are different states.
      */
     val calibreSyncedPercent: Int = -1,
+    val kind: BookKind = BookKind.Text,
+    /**
+     * Reading direction, for a [BookKind.Comic].
+     *
+     * Right-to-left by default, because the overwhelming majority of comics on this phone are manga
+     * and a Western-ordered scan is the exception. Per book rather than a global setting, since a
+     * shelf routinely holds both — long-press a book to flip it.
+     */
+    val rightToLeft: Boolean = true,
 )

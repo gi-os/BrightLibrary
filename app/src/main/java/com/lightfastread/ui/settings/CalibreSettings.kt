@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.calibre.CalibreClient
+import com.lightfastread.calibre.CalibreQr
 import com.lightfastread.calibre.ReadingState
 import com.lightfastread.data.CalibreConfig
 import com.gios.light.common.hw.WheelInDialog
@@ -68,6 +69,7 @@ fun CalibreSettings(
     var kobo by remember { mutableStateOf(TextFieldValue(initial.koboUrl)) }
     var testing by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
+    var scanning by remember { mutableStateOf(false) }
 
     val edited = {
         CalibreConfig(
@@ -159,6 +161,22 @@ fun CalibreSettings(
                 }
                 Spacer(Modifier.height(1f.gridUnitsAsDp()))
 
+                // Above TEST, because it is the step before it: four fields of hostname, account and
+                // hex token, typed on a phone with no keyboard of its own, is the worst part of
+                // setting this up — and the token cannot be guessed at or shortened.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .lightClickable { scanning = true },
+                ) {
+                    LightRule()
+                    LightText(
+                        text = "SCAN QR CODE",
+                        variant = LightTextVariant.Button,
+                        modifier = Modifier.padding(vertical = 14f.designVerticalPxToDp()),
+                    )
+                }
+
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -199,6 +217,29 @@ fun CalibreSettings(
                 ),
             )
         }
+    }
+
+    if (scanning) {
+        QrScanner(
+            onScanned = { raw ->
+                scanning = false
+                // Parsed against what is currently on screen, not against what was saved: a code
+                // that carries only a sync URL should fill that in and leave the rest of a
+                // half-finished edit alone.
+                val before = edited()
+                val scanned = CalibreQr.parse(raw, before)
+                if (scanned == null) {
+                    result = "That code isn't a Calibre setup code."
+                } else {
+                    url = TextFieldValue(scanned.baseUrl)
+                    user = TextFieldValue(scanned.username)
+                    password = TextFieldValue(scanned.password)
+                    kobo = TextFieldValue(scanned.koboUrl)
+                    result = CalibreQr.summarise(before, scanned)
+                }
+            },
+            onDismiss = { scanning = false },
+        )
     }
 }
 

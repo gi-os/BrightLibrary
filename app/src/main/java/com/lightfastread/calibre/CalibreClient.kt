@@ -3,6 +3,7 @@ package com.lightfastread.calibre
 import android.util.Base64
 import android.util.Log
 import com.lightfastread.data.CalibreConfig
+import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
@@ -89,6 +90,53 @@ class CalibreClient(private val config: CalibreConfig) {
     fun text(url: String): String = get(url, MAX_FEED_BYTES).toString(Charsets.UTF_8)
 
     fun bytes(url: String, limit: Long = MAX_BOOK_BYTES): ByteArray = get(url, limit)
+
+    /**
+     * Download to a file, without ever holding the whole thing.
+     *
+     * A comic volume is 100-250 MB. Read into a `ByteArray` on a phone with a couple of hundred
+     * megabytes of heap, that is not a slow download but an OutOfMemoryError - and a zip has to be
+     * seekable to be read entry by entry anyway, which a stream is not.
+     */
+    fun download(url: String, target: File, limit: Long = MAX_BOOK_BYTES): Long {
+        var current = url
+        var hops = 0
+        while (true) {
+            val connection = open(current)
+            try {
+                val code = connection.responseCode
+                if (code in 300..399) {
+                    val location = connection.getHeaderField("Location")
+                        ?: throw IOException("The server redirected without saying where.")
+                    if (++hops > MAX_REDIRECTS) throw IOException("Too many redirects.")
+                    current = Opds.resolve(current, location)
+                    continue
+                }
+                if (code != HttpURLConnection.HTTP_OK) throw IOException(explain(code))
+                var total = 0L
+                connection.inputStream.use { input ->
+                    target.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            total += read
+                            if (total > limit) {
+                                throw IOException("That file is larger than ${limit / (1024 * 1024)} MB.")
+                            }
+                            output.write(buffer, 0, read)
+                        }
+                    }
+                }
+                return total
+            } catch (e: Exception) {
+                target.delete()
+                throw e
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
 
     private fun resolveSearchTemplate(): String? {
         val osdHref = runCatching { root().searchHref }.getOrNull() ?: return null

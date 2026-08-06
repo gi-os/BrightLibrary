@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.data.Book
+import com.lightfastread.data.BookKind
 import com.lightfastread.ui.light.LightRule
 import com.lightfastread.ui.light.LightText
 import com.lightfastread.ui.light.LightTextVariant
@@ -39,6 +40,7 @@ fun BookActions(
     book: Book,
     onFindCover: () -> Unit,
     onRename: () -> Unit,
+    onFlipDirection: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -73,6 +75,17 @@ fun BookActions(
                 // asking again in a smaller box.
                 ActionRow(text = "DELETE — TAP TO CONFIRM", onClick = onDelete)
                 ActionRow(text = "KEEP IT", onClick = { confirmingDelete = false })
+            } else if (book.kind == BookKind.Comic) {
+                // A comic has no catalogue to search and no metadata worth correcting — its first
+                // page is its cover and its file name is its title. What it does have is a reading
+                // direction, and that is the one thing about it worth being able to change.
+                ActionRow(
+                    text = if (book.rightToLeft) "READ LEFT TO RIGHT" else "READ RIGHT TO LEFT",
+                    onClick = onFlipDirection,
+                )
+                ActionRow(text = "FIX NAME", onClick = onRename)
+                ActionRow(text = "DELETE", onClick = { confirmingDelete = true })
+                ActionRow(text = "CANCEL", lighten = true, onClick = onDismiss)
             } else {
                 ActionRow(text = "FIND COVER", onClick = onFindCover)
                 // Directly under FIND COVER, because it is the thing to try when that keeps
