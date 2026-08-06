@@ -1,3 +1,42 @@
+## LightBooks v1.14.0 — Pages stored at the width they are shown at
+
+**Every page was slightly softer than the screen could show, and 4-koma strips were much worse.**
+A page was stored with its **long edge** at 1240 — the panel's height — which puts an ordinary
+portrait page at 868 pixels wide. The reader then fits a page to the screen's *width*, 1080, so every
+page in every book was being stretched by a quarter on its way to the glass. In 4-koma mode a column
+is half a page: **434 pixels blown up to fill 1080**, which is where softness stops being theoretical.
+
+The cap is on the **width** now:
+
+- **1080** for an ordinary volume — the panel's own width, so fit-to-width is pixel for pixel.
+- **2160** for a volume that prints two strips to a page, so a *column* lands at 1080.
+- A separate pixel ceiling for the pages that are not page-shaped — a double spread, a poster, a strip
+  stitched into one tall image — which a width target alone would let become a bitmap no phone can
+  decode.
+- **Nothing is ever enlarged at import.** The scan is the ceiling: a volume scanned 1600 wide stores
+  at 1600, and no amount of storage invents the rest.
+
+**Which volumes are strips is decided by looking at them.** Ten pages spread through the middle of the
+book are decoded small and asked whether they have a band of blank paper down the middle — the same
+test the reader already uses to decide whether a page can split at all. Seven of ten and it is a
+yonkoma: it is stored at the wider size, and **4-koma mode switches itself on for that series**. Only
+for the first volume of a series, so a mode you turned off is never switched back on by the next volume
+you add. Covers and afterwords are skipped, being the pages least likely to have a gutter in a book
+that otherwise has one.
+
+**Three things had to change so a bigger page cannot kill the app.** A 2160-wide page is 27 MB once
+decoded, and the reader used to keep six pages at a time — which would have been 160 MB. So the page
+cache is budgeted in bytes rather than counted in entries, the decode backs off against the heap so a
+phone with less memory gets a smaller page instead of a crash, and the crop box and the gutter are now
+measured on a small copy of the page rather than by reading 27 million pixels of the real one.
+
+**Volumes already on the phone keep their old pages** — delete and re-download the ones worth it,
+starting with the 4-koma. Expect an ordinary volume to take about half again as much space, and a
+strip volume around four times as much; a volume that will not fit is stored at the ordinary width
+rather than filling the disk.
+
+---
+
 ## LightBooks v1.13.4 — 4-koma only splits a page that has a gutter
 
 **A full page is no longer cut in half.** 4-koma mode used to split every page at the halfway point,
