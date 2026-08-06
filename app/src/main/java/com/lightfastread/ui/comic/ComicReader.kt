@@ -169,9 +169,10 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
      */
     fun stepsFor(limit: Float, height: Float): Int {
         if (limit <= 0f || viewportHeight <= 0f) return 0
-        // A 4-koma strip is one image read from top to bottom in a fixed number of stops: four panels,
-        // four scroll points. Dividing by screenfuls instead would land the panel boundaries wherever
-        // the screen happened to end.
+        // A 4-koma strip is one image read from top to bottom in a fixed number of stops. Three
+        // scrolls, which is four resting points — one per panel — because the first panel is where you
+        // start rather than somewhere you scroll to. Dividing by screenfuls instead would land the
+        // panel boundaries wherever the screen happened to end.
         if (fourKoma) return FOURKOMA_SCROLLS
         val ideal = viewportHeight * (1f - SCREEN_OVERLAP)
         val n = ceil(limit / ideal).toInt().coerceAtLeast(1)
@@ -557,8 +558,13 @@ private const val SCREEN_OVERLAP = 0.08f
  */
 private const val FOURKOMA_COLUMNS = 2
 
-/** Four panels, four scroll points down the strip. */
-private const val FOURKOMA_SCROLLS = 4
+/**
+ * Scrolls per strip — *moves*, not positions.
+ *
+ * Three moves is four resting points, one for each panel of a yonkoma: you begin on the first and
+ * scroll to the other three.
+ */
+private const val FOURKOMA_SCROLLS = 3
 
 /** A strip taller than two screens gets at least this many steps rather than two big jumps. */
 private const val MIN_TALL_STEPS = 4

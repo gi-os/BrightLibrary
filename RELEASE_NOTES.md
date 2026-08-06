@@ -1,3 +1,12 @@
+## LightBooks v1.13.3 — Three scrolls, four stops
+
+A 4-koma strip now takes **three** scrolls rather than four, which is four resting points down the
+strip — one per panel. The first panel is where you start, not somewhere you scroll to, so four moves
+was one too many and ended with a stop that had nowhere left to go. The counter in the chrome reads
+1/4 through 4/4.
+
+---
+
 ## LightBooks v1.13.2 — 4-koma reads the right strip, then the left
 
 I had the cut in the wrong direction. A yonkoma page prints **two strips side by side**, each four
