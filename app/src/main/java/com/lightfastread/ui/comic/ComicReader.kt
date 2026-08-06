@@ -25,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -126,6 +125,14 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     val fourKoma = options.fourKoma
     val perPage = if (fourKoma) FOURKOMA_COLUMNS else 1
     val slots = pageCount * perPage
+
+    // Pages with no gutter down the middle: a splash, a chapter break, a spread. They are shown whole,
+    // and their second strip does not exist, so moving through the book steps over it. Learned as pages
+    // are measured rather than up front — measuring a 200-page volume to open it would be absurd.
+    //
+    // A `Set` in one state holder rather than a `SnapshotStateList`: `MutableList<Int>.remove(Int)` is
+    // ambiguous with `removeAt(Int)` and will not compile, and a set is what this is anyway.
+    var unsplittable by remember(bookId) { mutableStateOf(emptySet<Int>()) }
     fun pageOf(slot: Int) = slot / perPage
     fun columnOf(slot: Int): Int {
         if (!fourKoma) return -1
@@ -159,10 +166,6 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     /** The page being covered up, if a turn is in flight. Never null while one is. */
     var outgoing by remember { mutableStateOf<Outgoing?>(null) }
 
-    // Pages with no gutter down the middle: a splash, a chapter break, a spread. They are shown whole,
-    // and their second strip does not exist, so moving through the book steps over it. Learned as pages
-    // are measured rather than up front — measuring a 200-page volume to open it would be absurd.
-    val unsplittable = remember(bookId) { mutableStateListOf<Int>() }
 
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -327,11 +330,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 maxScroll = limit
                 contentHeight = height
                 val page = pageOf(slot)
-                if (splittable) {
-                    unsplittable.remove(page)
-                } else if (page !in unsplittable) {
-                    unsplittable.add(page)
-                }
+                unsplittable = if (splittable) unsplittable - page else unsplittable + page
                 if (landAtBottom) {
                     landAtBottom = false
                     // Turning backwards lands at the *bottom* of the previous page, which is where you
