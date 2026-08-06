@@ -47,6 +47,20 @@ object Storage {
     fun fits(context: Context, bytes: Long): Boolean =
         bytes > 0 && (bytes * 12 / 10) <= downloadLimit(context)
 
+    /**
+     * Whether a file can be read into memory whole.
+     *
+     * The text import path allocates the entire book as a `ByteArray` and then builds a string of
+     * its text on top, so the safe ceiling is a fraction of the heap rather than the heap itself.
+     * A quarter is conservative on purpose: the phone reported a 128 MB limit with 124 MB still to
+     * give, and a 175 MB allocation ended the process outright.
+     */
+    fun fitsInHeap(bytes: Long): Boolean = bytes in 1..(Runtime.getRuntime().maxMemory() / 4)
+
+    fun tooBigForHeapMessage(bytes: Long): String =
+        "That book is ${humanBytes(bytes)} of text, which is more than this phone can open at once. " +
+            "If it is a comic, it needs to be a CBZ or an image EPUB."
+
     /** "1.4 GB", "137 MB", "812 kB" — for a message a person has to act on. */
     fun humanBytes(bytes: Long): String = when {
         bytes >= 1024L * 1024 * 1024 -> String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024))

@@ -88,8 +88,21 @@ object Importer {
             return Result.Added(repo.getBook(id) ?: book)
         }
 
+        // The text parsers take the whole file as a `ByteArray`, so this is the one place in the app
+        // that allocates a book's worth of heap at once. A 175 MB manga volume that slipped past
+        // [ComicPages.scan] did exactly that on a 128 MB heap and killed the process — an
+        // OutOfMemoryError is not catchable in any useful way, so the size is checked *before* the
+        // read rather than the failure being handled after it.
+        if (!Storage.fitsInHeap(file.length())) {
+            return Result.Failed(Storage.tooBigForHeapMessage(file.length()))
+        }
+
         val parsed = try {
             BookParser.parseBytes(file.readBytes(), displayName)
+        } catch (e: OutOfMemoryError) {
+            // Belt and braces. The parsers build a string of the whole text on top of the bytes, so
+            // the guard above is a floor, not a guarantee.
+            return Result.Failed("“$displayName” needs more memory than this phone has for a text book.")
         } catch (e: Exception) {
             return Result.Failed(e.message ?: "Failed to import")
         }

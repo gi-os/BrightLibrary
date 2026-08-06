@@ -76,7 +76,11 @@ object ComicPages {
         val ext = fileName.substringAfterLast('.', "").lowercase()
         return try {
             ZipFile(file).use { zip ->
-                val names = zip.entries().asSequence().filter { !it.isDirectory }.map { it.name }.toList()
+                val entries = zip.entries().asSequence().filter { !it.isDirectory }.toList()
+                val names = entries.map { it.name }
+                // Sizes come from the zip's central directory, so this costs no reads.
+                val imageBytes = entries.filter { ComicScan.isImage(it.name) }.sumOf { it.size.coerceAtLeast(0) }
+                val totalBytes = entries.sumOf { it.size.coerceAtLeast(0) }
                 fun read(name: String): ByteArray? =
                     zip.getEntry(name)?.let { entry -> zip.getInputStream(entry).use { it.readBytes() } }
 
@@ -100,7 +104,13 @@ object ComicPages {
                         } else {
                             textChars.toLong()
                         }
-                        if (ComicScan.looksLikeComic(images, estimated.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())) {
+                        if (ComicScan.looksLikeComic(
+                                imageCount = images,
+                                textChars = estimated.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                                imageBytes = imageBytes,
+                                totalBytes = totalBytes,
+                            )
+                        ) {
                             ComicScan.epubPages(names, ::read).takeIf { it.isNotEmpty() }
                         } else {
                             null

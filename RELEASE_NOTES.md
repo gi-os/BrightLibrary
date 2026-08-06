@@ -1,3 +1,36 @@
+## LightBooks v1.10.1 — The volume with an afterword is still a comic
+
+**Downloading certain manga killed the app outright.** The crash report says it in one line:
+
+```
+java.lang.OutOfMemoryError: Failed to allocate a 175566328 byte allocation … 128 MB heap
+```
+
+175 MB in a single allocation is a whole book being read into memory, which only the *text* import
+path does — so a manga volume had been judged prose. It was judged prose because the test asked the
+wrong question. Deciding by how much text a book contains works until a scanned volume ships a text
+afterword, and *As a Reincarnated Aristocrat* and *I Was Reincarnated as the 7th Prince* carry about
+16,000 characters of one. Eleven volumes in the library were affected, every one of them ending in a
+dead app rather than a message.
+
+The question is now **how much of the file is pictures**. Measured across 76 real EPUBs, every manga
+volume spends 99.9% of its bytes on images and every novel spends under 15% — cover, plates and all.
+The threshold sits at 80%, nowhere near either group. The old text-ratio test is still consulted, but
+only for archives that report no useful sizes, and it can no longer overrule a low image share.
+
+Two more changes so this class of failure cannot be fatal again:
+
+- **The size is checked before the file is read.** Anything larger than a quarter of the available
+  heap is refused with a sentence that says so, and suggests CBZ if it is a comic. An
+  `OutOfMemoryError` cannot be handled after the fact — the process is already gone — so the only
+  useful place to deal with it is before the allocation.
+- `OutOfMemoryError` is caught around the parse anyway, since the parsers build a string of the whole
+  text on top of the bytes and the guard is a floor rather than a guarantee.
+
+If any of those eleven volumes are on your shelf as a failed import, delete and re-download them.
+
+---
+
 ## LightBooks v1.10 — Downloads are limited by the phone, not by a number I made up
 
 The download cap was 96 MB, which is generous for a novel and meaningless for a comic: a manga

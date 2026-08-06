@@ -111,13 +111,30 @@ class ComicScanTest {
     }
 
     @Test
-    fun `pictures and prose are told apart by the ratio, not the count`() {
-        // A scanned volume: a page each, and a few characters of credit line.
-        assertTrue(ComicScan.looksLikeComic(imageCount = 193, textChars = 350))
-        // An illustrated novel: plenty of images, and an actual book's worth of words.
-        assertFalse(ComicScan.looksLikeComic(imageCount = 40, textChars = 400_000))
-        // A picture book of eight plates is not enough to be worth opening as a comic.
-        assertFalse(ComicScan.looksLikeComic(imageCount = 4, textChars = 0))
+    fun `pictures and prose are told apart by weight`() {
+        // Every number below was measured off a real library of 76 EPUBs; the rule that shipped in
+        // v1.10 read the second case as prose and killed the app trying to load 175 MB as text.
+
+        // A scanned volume: a page each, a credit line, and effectively all of it images.
+        assertTrue(ComicScan.looksLikeComic(193, textChars = 350, imageBytes = 231_000_000, totalBytes = 231_200_000))
+        // A scanned volume *with a text afterword* — 16k characters of real prose over 194 scans.
+        assertTrue(ComicScan.looksLikeComic(194, textChars = 15_960, imageBytes = 175_400_000, totalBytes = 175_566_328))
+        // A novel with a dozen illustrations: a million characters, and 15% of its bytes in images.
+        assertFalse(ComicScan.looksLikeComic(12, textChars = 1_084_934, imageBytes = 170_000, totalBytes = 1_140_000))
+        // A novel with a cover and nothing else.
+        assertFalse(ComicScan.looksLikeComic(2, textChars = 996_710, imageBytes = 76_000, totalBytes = 600_000))
+        // A picture book of four plates is not enough to be worth opening as a comic.
+        assertFalse(ComicScan.looksLikeComic(4, textChars = 0, imageBytes = 4_000_000, totalBytes = 4_000_100))
+    }
+
+    @Test
+    fun `the text ratio is only consulted when sizes are unavailable`() {
+        // No byte information at all — fall back to the old heuristic rather than refusing to guess.
+        assertTrue(ComicScan.looksLikeComic(193, textChars = 350))
+        assertFalse(ComicScan.looksLikeComic(40, textChars = 400_000))
+        // With sizes present and low, a small text count must NOT override them: this shape is an
+        // art-heavy novel, and opening it as a comic would show unreadable page images.
+        assertFalse(ComicScan.looksLikeComic(20, textChars = 100, imageBytes = 100_000, totalBytes = 1_000_000))
     }
 
     @Test

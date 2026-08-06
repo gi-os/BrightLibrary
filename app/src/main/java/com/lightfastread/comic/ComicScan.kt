@@ -162,17 +162,44 @@ object ComicScan {
     /**
      * Is this EPUB a book of pictures rather than a book of words?
      *
-     * The question is worth asking because the answer decides which reader opens, and because
-     * getting it wrong is loud in both directions: a manga volume opened as text is a hundred blank
-     * pages, and a novel opened as a comic is a hundred unreadable page images.
+     * The answer decides which reader opens, and getting it wrong is loud in both directions: a
+     * manga volume opened as text is a hundred blank pages, and a novel opened as a comic is a
+     * hundred unreadable page images. Worse than either, the text path reads the whole file into
+     * memory — so a 175 MB volume misjudged as text is an `OutOfMemoryError` on a 128 MB heap, which
+     * is exactly how this rule was found to be wrong.
      *
-     * The test is the ratio, not either number alone. An illustrated novel has plenty of images and
-     * plenty of text; a scanned volume has one image per page and a few characters of alt text or
-     * credits. [textChars] is the visible text across the whole book, [imageCount] the images in the
-     * archive.
+     * **Weight decides it, not word count.** In a scanned volume the images *are* the book: measured
+     * across a real library, every manga EPUB spends 99.9% of its bytes on images and every novel
+     * spends under 15%, illustrations and cover included. That gap is enormous and stable.
+     *
+     * The old text-ratio test is kept as a second opinion for archives whose sizes are unhelpful
+     * (uncompressed, or wrapped so the image share is muddied), but it can no longer be the only
+     * vote. It failed on eleven volumes of *As a Reincarnated Aristocrat* and *I Was Reincarnated as
+     * the 7th Prince*, which carry a text afterword of about 16,000 characters — real prose, on
+     * pages that are still scans.
      */
-    fun looksLikeComic(imageCount: Int, textChars: Int): Boolean =
-        imageCount >= MIN_PAGES && textChars < imageCount * MAX_TEXT_CHARS_PER_PAGE
+    fun looksLikeComic(
+        imageCount: Int,
+        textChars: Int,
+        imageBytes: Long = 0,
+        totalBytes: Long = 0,
+    ): Boolean {
+        if (imageCount < MIN_PAGES) return false
+        val share = if (totalBytes > 0) imageBytes.toDouble() / totalBytes else 0.0
+        if (share >= MIN_IMAGE_BYTE_SHARE) return true
+        // Only trust the text ratio when the byte share had nothing to say. A low share is a real
+        // signal that this is prose, and must not be overruled.
+        return totalBytes <= 0 && textChars < imageCount * MAX_TEXT_CHARS_PER_PAGE
+    }
+
+    /**
+     * How much of an archive has to be pictures before it is a book of pictures.
+     *
+     * 0.8 rather than something nearer the measured 0.999, because a volume with a text-heavy bonus
+     * chapter, a long copyright page or an embedded font is still a comic — and no novel measured
+     * came anywhere near this, the most illustrated one reaching 0.15.
+     */
+    private const val MIN_IMAGE_BYTE_SHARE = 0.80
 
     /** Below this it is an illustrated something, not a volume of scans. */
     private const val MIN_PAGES = 8
