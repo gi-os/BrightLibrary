@@ -1,3 +1,30 @@
+## LightBooks v1.12.1 — Even steps, and a page that arrives from the right direction
+
+Three corrections to the fit-to-width reader, all of them about how the scroll *feels*:
+
+- **Every step down a page is now the same distance.** The page's overflow is divided into equal
+  steps of at most a screen, so a page one and a half screens tall is two half-screen steps rather
+  than a screen and then a stub — and the last step lands exactly on the bottom.
+- **A page turn continues the movement it came from.** While fitted to the width, the next page now
+  slides up from the bottom instead of sliding in sideways, and going back brings the previous page
+  down from the top, at its bottom edge — where you were reading when you left it. Whole-page mode
+  keeps the sideways turn, which is what a page turn looks like when you can see the whole page.
+- **Scrolling is animated** — about a fifth of a second, eased. A page that jumps a screen with no
+  motion gives you nothing to follow, and finding your place again is most of the work of reading.
+
+Four bugs found while writing it, none of which would have been obvious from using it for a minute:
+
+- Tapping the forward third twice turned one page, twice. The tap handler had captured the page
+  number it was composed with, and Compose had no reason to replace it.
+- After turning by swipe rather than by tap, the scroll position, zoom and pan of the *previous* page
+  were still in force.
+- The scroll limit could belong to the page you had just left, so the first notch on a taller page
+  turned straight past it.
+- A fast drag under-scrolled, because each pointer event started an animation that cancelled the one
+  before it and lost its delta.
+
+---
+
 ## LightBooks v1.12 — Manga you can actually read on a 3.9" screen
 
 **Pages now fit the width and scroll, rather than being shrunk whole onto the panel.** A manga page

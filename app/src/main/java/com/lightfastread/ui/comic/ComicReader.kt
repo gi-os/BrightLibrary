@@ -3,6 +3,9 @@ package com.lightfastread.ui.comic
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -65,6 +68,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -123,41 +127,93 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     // scrolled to the middle of nowhere.
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
-    var scrollY by remember { mutableFloatStateOf(0f) }
+    // Animated rather than assigned: a page that jumps a screen with no motion gives you nothing to
+    // follow, and finding your place again after every notch is most of the work of reading.
+    val scroll = remember { Animatable(0f) }
     var maxScroll by remember { mutableFloatStateOf(0f) }
+    // How far the page is displaced while it arrives. A turn is a continuation of the same downward
+    // movement, so the next page comes *up from the bottom* rather than appearing whole.
+    val enter = remember { Animatable(0f) }
+    // Filled in by the layout below. The wheel and the page turn both need it, and both run outside
+    // the layout scope.
+    var viewportHeight by remember { mutableFloatStateOf(0f) }
 
-    /** Move through the book, landing at the top of the next page or the bottom of the previous. */
+    /**
+     * Move through the book.
+     *
+     * Forwards lands at the top of the next page, backwards at the *bottom* of the previous one —
+     * which is where you were reading when you left it, and the only landing that lets you turn back
+     * to check something and carry straight on.
+     *
+     * While fitted to the width the page change is vertical: the pager jumps without its horizontal
+     * animation and the new page slides in from the edge you were travelling towards, so a turn
+     * looks like more of the same scroll rather than a different gesture. Whole-page mode keeps the
+     * pager's sideways turn, which is what a page turn looks like when you can see the whole page.
+     */
     val turnPage: (Int) -> Unit = { direction ->
         val next = (currentPage + direction).coerceIn(0, lastIndex)
         if (next != currentPage) {
             zoom = 1f
             pan = Offset.Zero
-            // Backwards lands at the *bottom* of the previous page, which is where you were reading
-            // when you left it. Set out of range on purpose: the page's own measurement clamps it
-            // once it knows how tall it is.
-            scrollY = if (direction < 0) Float.MAX_VALUE else 0f
-            scope.launch { pagerState.animateScrollToPage(toPosition(next)) }
+            scope.launch {
+                if (fitWidth) {
+                    enter.snapTo(if (direction > 0) viewportHeight else -viewportHeight)
+                    pagerState.scrollToPage(toPosition(next))
+                    // Backwards asks for the bottom before anything knows how tall the page is; the
+                    // measurement clamps it as soon as it does.
+                    scroll.snapTo(if (direction < 0) Float.MAX_VALUE else 0f)
+                    enter.animateTo(0f, tween(PAGE_ENTER_MS, easing = FastOutSlowInEasing))
+                } else {
+                    scroll.snapTo(0f)
+                    pagerState.animateScrollToPage(toPosition(next))
+                }
+            }
         }
     }
 
     /**
-     * One notch of the wheel: a screen down the page, or the next page if there is no page left.
+     * One notch of the wheel: one step down the page, or the next page when the page runs out.
      *
-     * The overlap is deliberate. Landing exactly a screen further would cut the line of dialogue
-     * that straddles the boundary in half and put the halves on different screens.
+     * **Every step down a page is the same distance.** The page's overflow is divided into whole
+     * steps of at most a screen each, so a page one and a half screens tall is two equal half-screen
+     * steps rather than a screen and then a stub — and the last step always lands exactly on the
+     * bottom. Uneven steps are the thing that makes a reader feel like it is guessing.
      */
-    val scrollOrTurn: (Int, Float) -> Unit = { direction, viewportHeight ->
-        val step = viewportHeight * (1f - SCREEN_OVERLAP)
+    val scrollOrTurn: (Int) -> Unit = { direction ->
+        val ideal = viewportHeight * (1f - SCREEN_OVERLAP)
+        // `ideal` is zero until the first layout pass has happened; dividing by it makes the step a
+        // denormal that slips past every guard below and turns a notch into nothing at all.
+        val steps = if (maxScroll <= 0f || ideal <= 0f) 1 else ceil(maxScroll / ideal).toInt().coerceAtLeast(1)
+        val step = if (steps > 0) maxScroll / steps else 0f
+        val at = scroll.value
         if (direction > 0) {
-            if (scrollY >= maxScroll - 1f) turnPage(1) else scrollY = (scrollY + step).coerceAtMost(maxScroll)
+            if (at >= maxScroll - 1f || step <= 0f) {
+                turnPage(1)
+            } else {
+                scope.launch { scroll.animateTo((at + step).coerceAtMost(maxScroll), tween(SCROLL_MS, easing = FastOutSlowInEasing)) }
+            }
         } else {
-            if (scrollY <= 1f) turnPage(-1) else scrollY = (scrollY - step).coerceAtLeast(0f)
+            if (at <= 1f || step <= 0f) {
+                turnPage(-1)
+            } else {
+                scope.launch { scroll.animateTo((at - step).coerceAtLeast(0f), tween(SCROLL_MS, easing = FastOutSlowInEasing)) }
+            }
         }
     }
+
+    // `pointerInput` compares only its keys, so a lambda capturing `currentPage` would go stale the
+    // moment the page changed without one of those keys changing with it — and tapping forward twice
+    // would land on the same page both times.
+    val turn by rememberUpdatedState(turnPage)
 
     LaunchedEffect(pagerState, bookId) {
         snapshotFlow { pagerState.currentPage }.collect { position ->
             repo.updateProgress(bookId, toPage(position))
+            // A page reached by swiping never went through `turnPage`, so nothing had reset the
+            // scroll: the new page would open wherever the last one had been scrolled to.
+            zoom = 1f
+            pan = Offset.Zero
+            if (enter.value == 0f) scroll.snapTo(0f)
         }
     }
 
@@ -183,8 +239,9 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
     ) {
         val viewportW = constraints.maxWidth.toFloat()
         val viewportH = constraints.maxHeight.toFloat()
+        LaunchedEffect(viewportH) { viewportHeight = viewportH }
 
-        WheelPaging { direction -> scrollOrTurn(direction, viewportH) }
+        WheelPaging { direction -> scrollOrTurn(direction) }
 
         HorizontalPager(
             state = pagerState,
@@ -201,15 +258,17 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                 fitWidth = fitWidth,
                 zoom = if (active) zoom else 1f,
                 pan = if (active) pan else Offset.Zero,
-                scrollY = if (active) scrollY else 0f,
+                scrollY = if (active) scroll.value else 0f,
+                enterOffset = if (active) enter.value else 0f,
+                active = active,
                 viewportW = viewportW,
                 viewportH = viewportH,
                 onMeasured = { limit ->
                     if (active) {
                         maxScroll = limit
-                        // A page arriving from a backwards turn asked to start at its bottom before
-                        // anything knew where that was.
-                        scrollY = scrollY.coerceIn(0f, limit)
+                        // A page arriving from a backwards turn asked for its bottom before anything
+                        // knew where that was.
+                        if (scroll.value > limit) scope.launch { scroll.snapTo(limit) }
                     }
                 },
             )
@@ -229,8 +288,8 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                             val back = if (rtl) offset.x > size.width - third else offset.x < third
                             when {
                                 zoom > 1f -> showChrome = !showChrome
-                                forward -> turnPage(1)
-                                back -> turnPage(-1)
+                                forward -> turn(1)
+                                back -> turn(-1)
                                 else -> showChrome = !showChrome
                             }
                         },
@@ -240,6 +299,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         var vertical = false
+                        var dragTarget = scroll.value
                         do {
                             val event = awaitPointerEvent()
                             val moving = event.changes.any { it.positionChanged() }
@@ -269,8 +329,13 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                                     pan += delta
                                     drag.consume()
                                 } else if ((vertical || abs(delta.y) > abs(delta.x)) && canScroll) {
+                                    if (!vertical) dragTarget = scroll.value
                                     vertical = true
-                                    scrollY = (scrollY - delta.y).coerceIn(0f, maxScroll)
+                                    // The target is absolute, not a delta: `Animatable` mutations go
+                                    // through a mutex that cancels the previous one, so a fast drag
+                                    // would otherwise drop whichever deltas lost that race.
+                                    dragTarget = (dragTarget - delta.y).coerceIn(0f, maxScroll)
+                                    scope.launch { scroll.snapTo(dragTarget) }
                                     drag.consume()
                                 }
                             }
@@ -320,7 +385,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                                 fitWidth = !fitWidth
                                 zoom = 1f
                                 pan = Offset.Zero
-                                scrollY = 0f
+                                scope.launch { scroll.snapTo(0f) }
                                 settingsRepo.update { it.copy(comicFitWidth = fitWidth) }
                             },
                         ),
@@ -329,7 +394,7 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
                             active = crop,
                             onClick = {
                                 crop = !crop
-                                scrollY = 0f
+                                scope.launch { scroll.snapTo(0f) }
                                 settingsRepo.update { it.copy(comicCropBorders = crop) }
                             },
                         ),
@@ -358,6 +423,18 @@ private fun ComicPageCanvas(
     zoom: Float,
     pan: Offset,
     scrollY: Float,
+    /**
+     * How far the page is displaced while it arrives, in pixels, applied *after* the scroll is
+     * clamped — a page sliding in from below is deliberately outside its own scroll range, and
+     * clamping it would make the animation disappear.
+     */
+    enterOffset: Float,
+    /**
+     * Whether this is the page being read. A page composes while it is still off screen, so the
+     * measurement has to be re-reported when it becomes the live one — otherwise the scroll limit
+     * belongs to the page you just left, and the first notch on a taller page turns straight past it.
+     */
+    active: Boolean,
     viewportW: Float,
     viewportH: Float,
     onMeasured: (maxScroll: Float) -> Unit,
@@ -408,11 +485,12 @@ private fun ComicPageCanvas(
     val drawH = srcH * scale
     val limit = max(0f, drawH - viewportH)
 
-    LaunchedEffect(limit) { onMeasured(limit) }
+    LaunchedEffect(limit, active) { if (active) onMeasured(limit) }
 
     Canvas(Modifier.fillMaxSize()) {
         val x = (viewportW - drawW) / 2f + pan.x
-        val y = if (limit <= 0f) (viewportH - drawH) / 2f + pan.y else -scrollY.coerceIn(0f, limit) + pan.y
+        val y = (if (limit <= 0f) (viewportH - drawH) / 2f else -scrollY.coerceIn(0f, limit)) +
+            pan.y + enterOffset
         drawImage(
             image = image.image,
             srcOffset = IntOffset(source.left, source.top),
@@ -467,6 +545,13 @@ private fun WheelPaging(onStep: (Int) -> Unit) {
 
 /** How much of the previous screen stays visible after a scroll, so a line is never cut in half. */
 private const val SCREEN_OVERLAP = 0.08f
+
+/**
+ * Long enough to see which way the page went, short enough that it never feels like waiting. The
+ * page turn is a touch quicker than a scroll step: it covers a whole screen rather than part of one.
+ */
+private const val SCROLL_MS = 220
+private const val PAGE_ENTER_MS = 190
 
 private const val DOUBLE_TAP_ZOOM = 2.5f
 private const val MAX_ZOOM = 6f
