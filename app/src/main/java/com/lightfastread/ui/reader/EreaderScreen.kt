@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -160,6 +161,15 @@ fun EreaderScreen(
     fontKey: String,
     fontSizeSp: Int,
     initialWordIndex: Int,
+    /**
+     * Where the reader is now, reported on every page turn.
+     *
+     * Not only on the way out, which is what this used to do and is why a book kept reopening at the
+     * same place: the way you leave an app on this phone is the hardware home key, which never runs
+     * the exit path — LightOS stops the activity and kills the process some minutes later, and
+     * everything read since the last deliberate exit was simply never written down.
+     */
+    onProgress: (wordIndex: Int) -> Unit,
     /** Hand the reader over to the RSVP screen, at the page currently showing. */
     onFastRead: (wordIndex: Int) -> Unit,
     /** Leave the book entirely, at the page currently showing. */
@@ -202,6 +212,10 @@ fun EreaderScreen(
     // on the left, over to the word reader on the right.
     var showChrome by remember(bookId) { mutableStateOf(false) }
     val pagerState = rememberPagerState(initialPage = 0) { pages.size }
+    // Whether the pager has been moved to the page the book was left on. Nothing may report a
+    // position before that: the pager starts at page 0, so a save fired on the way in would
+    // overwrite the very place it is about to restore.
+    var restored by remember(bookId) { mutableStateOf(false) }
 
     // Whichever page is showing decides where the word reader resumes, so leaving
     // always lands on the first word of the page actually on screen.
@@ -293,6 +307,7 @@ fun EreaderScreen(
                     // reader's place, so the current page's first word is the
                     // anchor to come back to.
                     val anchor = currentWord()
+                    restored = false
                     val cacheKey = "$bookId|${words.size}|$textWidthPx|" +
                         "${textHeightPx.roundToInt()}|$fontKey|$safeFontSizeSp"
 
@@ -360,6 +375,16 @@ fun EreaderScreen(
                     PageCache.put(cacheKey, built)
                     pages = built
                     pagerState.scrollToPage(pageOfWord(built, anchor))
+                    restored = true
+                }
+
+                // Every settled page is a saved position. `currentPage` is the page the pager has
+                // landed on rather than the one being dragged past, so this writes once per turn.
+                LaunchedEffect(pages, restored) {
+                    if (pages.isEmpty() || !restored) return@LaunchedEffect
+                    snapshotFlow { pagerState.currentPage }.collect { page ->
+                        pages.getOrNull(page)?.let { onProgress(it.first) }
+                    }
                 }
 
                 if (pages.isEmpty()) {

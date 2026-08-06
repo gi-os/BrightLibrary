@@ -42,8 +42,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.lightfastread.data.BookRepository
 import com.lightfastread.data.Chapter
 import com.lightfastread.data.Fonts
@@ -196,6 +199,22 @@ fun ReaderScreen(
 
     DisposableEffect(bookId) {
         onDispose { bookRepo.updateProgress(bookId, currentIndex) }
+    }
+
+    /**
+     * Save when the app leaves the screen, not only when the reader is closed.
+     *
+     * On this phone you leave an app by pressing home, which stops the activity and — some minutes
+     * later, out of sight — kills the process. Neither runs `onDispose`, so without this the last
+     * stretch of reading is lost and the book reopens where it was last *deliberately* closed.
+     */
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, bookId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) bookRepo.updateProgress(bookId, currentIndex)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val pointerX = remember { mutableFloatStateOf(0f) }
@@ -627,6 +646,14 @@ fun ReaderScreen(
                     fontKey = settings.fontFamily,
                     fontSizeSp = settings.readerFontSizeSp,
                     initialWordIndex = currentIndex,
+                    // Written straight through rather than through `jumpTo`: a page turn is reading,
+                    // not a jump, and putting every one of them on the back stack would make the
+                    // history arrow walk back a page at a time. Persisted here and now, because the
+                    // 500ms debounce below is no use if the process is killed inside it.
+                    onProgress = { newIndex ->
+                        currentIndex = newIndex.coerceIn(0, (words.size - 1).coerceAtLeast(0))
+                        bookRepo.updateProgress(bookId, currentIndex)
+                    },
                     onFastRead = { newIndex ->
                         showEreader = false
                         jumpTo(newIndex)

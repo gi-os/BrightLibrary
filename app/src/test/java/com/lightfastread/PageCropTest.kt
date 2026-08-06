@@ -164,6 +164,22 @@ class PageCropTest {
     }
 
     @Test
+    fun `a little ink leaning into the gutter does not block the cut`() {
+        val w = 900
+        val h = 1240
+        // The case that used to make a whole volume unsplittable page by page: a balloon tail, a
+        // hand, a sound effect crossing the gap. 60 rows of 1240 is 5% of the column — paper with
+        // something leaning into it, not a drawing.
+        val pixels = page(w, h) { set ->
+            fill(set, 40, 60, 429, 1179, 30)
+            fill(set, 450, 60, 859, 1179, 30)
+            fill(set, 420, 600, 470, 659, 20)
+        }
+        val gutter = PageCrop.centreGutter(pixels, w, h, PageCrop.contentBounds(pixels, w, h))
+        assertTrue("the cut should still go through, was $gutter", gutter != null && gutter in 425..455)
+    }
+
+    @Test
     fun `a malformed page is handled rather than crashing`() {
         assertEquals(0, PageCrop.contentBounds(IntArray(0), 0, 0).left)
         val short = PageCrop.contentBounds(IntArray(10), 100, 100)

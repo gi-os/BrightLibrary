@@ -1,3 +1,30 @@
+## LightBooks v1.14.1 — A book remembers where you got to
+
+**Reading a book saved your place only when you closed it deliberately.** The page view reported
+its position on the way out — the back arrow in the chrome, or the FastRead button — and nowhere
+else. But the way you leave an app on this phone is the home key, which stops the activity and, some
+minutes later, kills the process. Neither runs the exit path, so everything read since the last
+deliberate close was never written down, and the book reopened at that same old place every time.
+
+Two fixes, deliberately overlapping:
+
+- **Every page turn is a saved position.** The settled page — the one the pager landed on, not one
+  being dragged past — writes its first word straight to disk. Nothing is reported until the pager
+  has been moved to the page the book was left on, or opening a book would save page 1 over the very
+  place it was about to restore.
+- **Leaving the app saves too**, on the same signal that already tells Calibre where you are.
+
+Page turns are saved without going on the back stack: a turn is reading, not a jump, so the history
+arrow still walks back over the places you *jumped* to.
+
+**4-koma cuts have leeway now.** A gutter had to be blank paper — under 0.4% ink — and real scans are
+not that pure: a balloon tail, a hand, a sound effect or a page number leaning into the gap made the
+page unsplittable, which in 4-koma mode reads as a whole page in the middle of a book of strips. A
+column may now carry **up to 10% ink** and still be cut through. A speech bubble stretched across both
+strips is around 16% and still blocks the cut, which is right — those two strips really are joined.
+
+---
+
 ## LightBooks v1.14.0 — Pages stored at the width they are shown at
 
 **Every page was slightly softer than the screen could show, and 4-koma strips were much worse.**

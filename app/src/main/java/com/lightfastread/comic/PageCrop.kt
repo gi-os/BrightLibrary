@@ -72,7 +72,7 @@ object PageCrop {
      * double-page spread has no such band, and cutting one down the middle would slice a drawing in
      * half. So the mode asks the page rather than assuming.
      *
-     * Returns the **centre of the widest blank run** near the middle, not the geometric middle: the
+     * Returns the **centre of the widest near-blank run** near the middle, not the geometric middle: the
      * gutter is rarely centred on a scan, and cutting at the halfway point puts a sliver of the right
      * strip at the end of the left one.
      *
@@ -137,8 +137,21 @@ object PageCrop {
     /** How wide a band of the page to look in, centred on the middle. */
     private const val GUTTER_SEARCH_SPAN = 0.34
 
-    /** A gutter is blank paper: far stricter than the 2% a *content* line is allowed. */
-    private const val GUTTER_MAX_INK_FRACTION = 0.004
+    /**
+     * How much ink a column may carry and still count as gutter.
+     *
+     * Started at 0.4% — blank paper, nothing else — and that was too pure to be useful on real
+     * scans. A yonkoma gutter routinely carries *something*: the tail of a speech balloon, a hand or
+     * a sound effect leaning out of one strip, a page number, a scanner's crease. Any of those made
+     * the page unsplittable, and an unsplittable page in 4-koma mode reads as a whole page in the
+     * middle of a book of strips.
+     *
+     * A tenth is Gio's number and it is the right shape: a column that is 90% paper is paper with
+     * something leaning into it, while a column of drawing is far darker than that — the speech
+     * bubble stretched across both strips in the tests is 16%, and still blocks the cut, because
+     * those two strips really are joined.
+     */
+    private const val GUTTER_MAX_INK_FRACTION = 0.10
 
     /** Narrower than this and it is the space between two panels of one strip, not a gutter. */
     private const val MIN_GUTTER_FRACTION = 0.012
