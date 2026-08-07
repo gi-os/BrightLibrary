@@ -168,15 +168,38 @@ class PageCropTest {
         val w = 900
         val h = 1240
         // The case that used to make a whole volume unsplittable page by page: a balloon tail, a
-        // hand, a sound effect crossing the gap. 60 rows of 1240 is 5% of the column — paper with
-        // something leaning into it, not a drawing.
+        // hand, a sound effect crossing the gap. 35 rows of 1240 is under 3% of the column — paper
+        // with something leaning into it, not a drawing. (A first pass at this allowed up to 10%,
+        // which turned out to let genuinely near-blank pages read as gutters; 5% is the corrected
+        // ceiling, so this leans well inside it rather than right against it.)
         val pixels = page(w, h) { set ->
             fill(set, 40, 60, 429, 1179, 30)
             fill(set, 450, 60, 859, 1179, 30)
-            fill(set, 420, 600, 470, 659, 20)
+            fill(set, 420, 600, 470, 634, 20)
         }
         val gutter = PageCrop.centreGutter(pixels, w, h, PageCrop.contentBounds(pixels, w, h))
         assertTrue("the cut should still go through, was $gutter", gutter != null && gutter in 425..455)
+    }
+
+    @Test
+    fun `a fully blank page is not split`() {
+        val w = 900
+        val h = 1240
+        val pixels = page(w, h)  // pure white, nothing on it at all
+        assertNull(PageCrop.centreGutter(pixels, w, h, PageCrop.Bounds(0, 0, w, h)))
+    }
+
+    @Test
+    fun `a page with real content on only one side of a candidate cut is not split`() {
+        val w = 900
+        val h = 1240
+        // All the ink lives in the left half. The right half is not a thin gutter, it is a second
+        // strip that was never drawn — passing bounds spanning the whole page directly (rather than
+        // through contentBounds, which would crop the blank half away) so the search band actually
+        // reaches into it, the way a page wider than usual might in practice.
+        val pixels = page(w, h) { set -> fill(set, 40, 60, 429, 1179, 30) }
+        val gutter = PageCrop.centreGutter(pixels, w, h, PageCrop.Bounds(0, 0, w, h))
+        assertNull("a blank half is not a second strip", gutter)
     }
 
     @Test

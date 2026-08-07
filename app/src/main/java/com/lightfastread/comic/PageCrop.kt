@@ -76,6 +76,11 @@ object PageCrop {
      * gutter is rarely centred on a scan, and cutting at the halfway point puts a sliver of the right
      * strip at the end of the left one.
      *
+     * A candidate is thrown out unless **both sides of the cut have real content** on them. Without
+     * that check, a page that is entirely or almost entirely blank — a chapter break, a title page, a
+     * splash that faded to white — offers a "blank run" the width of the whole search band, and nothing
+     * before this stopped it from being read as a gutter and split into two empty strips.
+     *
      * [bounds] is the content area — the cropped page, so the paper margin is not mistaken for a
      * gutter. Pure, and tested against the shapes real pages come in.
      */
@@ -131,7 +136,33 @@ object PageCrop {
         if (runWidth < minRun) return null
         // A "gutter" a quarter of the page wide is not a gutter, it is an empty page.
         if (runWidth > bounds.width * MAX_GUTTER_FRACTION) return null
-        return (bestStart + bestEnd) / 2
+        val cut = (bestStart + bestEnd) / 2
+
+        // The blank-run search only ever proved the *middle* is empty — it says nothing about
+        // whether either side is. A page that is blank corner to corner passes every check above
+        // with a run the width of the whole search band; this is what actually stops it splitting.
+        fun regionInk(left: Int, right: Int): Double {
+            if (left >= right) return 0.0
+            var ink = 0
+            var counted = 0
+            var y = bounds.top
+            while (y < bounds.bottom) {
+                var x = left
+                while (x < right) {
+                    if ((pixels[y * width + x] and 0xFF) < WHITE) ink++
+                    counted++
+                    x += step
+                }
+                y += step
+            }
+            return if (counted > 0) ink.toDouble() / counted else 0.0
+        }
+        if (regionInk(bounds.left, cut) < MIN_STRIP_INK_FRACTION ||
+            regionInk(cut, bounds.right) < MIN_STRIP_INK_FRACTION
+        ) {
+            return null
+        }
+        return cut
     }
 
     /** How wide a band of the page to look in, centred on the middle. */
@@ -146,12 +177,14 @@ object PageCrop {
      * the page unsplittable, and an unsplittable page in 4-koma mode reads as a whole page in the
      * middle of a book of strips.
      *
-     * A tenth is Gio's number and it is the right shape: a column that is 90% paper is paper with
-     * something leaning into it, while a column of drawing is far darker than that — the speech
-     * bubble stretched across both strips in the tests is 16%, and still blocks the cut, because
-     * those two strips really are joined.
+     * A tenth turned out to be too much: at that tolerance a page with only faint, sparse marks —
+     * screentone, a light wash, dust across a whole near-blank page — could read as "blank" almost
+     * everywhere, which is a different failure than the one this was fixing. 5% is the corrected
+     * number, and it may need to come down further still; the [MIN_STRIP_INK_FRACTION] check below
+     * is the backstop for exactly that case, since a wide tolerance here now costs nothing if a
+     * blank-looking page fails that check regardless.
      */
-    private const val GUTTER_MAX_INK_FRACTION = 0.10
+    private const val GUTTER_MAX_INK_FRACTION = 0.05
 
     /** Narrower than this and it is the space between two panels of one strip, not a gutter. */
     private const val MIN_GUTTER_FRACTION = 0.012
@@ -161,6 +194,18 @@ object PageCrop {
 
     /** Below this width a page is too small to be two strips of anything. */
     private const val MIN_SPLITTABLE_PX = 200
+
+    /**
+     * How much ink each side of a candidate cut needs, or the page is left whole.
+     *
+     * The blank-run search proves the *middle* is empty; it is silent on whether either side has
+     * anything on it. Without this, a page that is white corner to corner — or white with one small
+     * mark nowhere near the middle — passes the run-width checks exactly as a real two-strip page
+     * would, and gets split into two blank halves. One percent is barely anything, which is the
+     * point: a real strip, even a sparse one, clears this by a wide margin, so it only ever catches
+     * the pages that truly have nothing on one side of the cut.
+     */
+    private const val MIN_STRIP_INK_FRACTION = 0.01
 
     /**
      * The same bounds, measured on one size of the page and expressed on another.

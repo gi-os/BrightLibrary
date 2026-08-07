@@ -1,3 +1,27 @@
+## LightBooks v1.15.1 — Almost-blank pages stop faking a gutter
+
+**Raising the gutter's ink tolerance to 10% (v1.14.1) fixed real balloon-tails and page numbers, and
+broke something else**: a page that is mostly or entirely blank — a chapter break, a faded splash, a
+title page — could now read as "blank" across nearly its whole width, which is exactly what a real
+gutter looks like to this check. The fix for one problem opened another.
+
+Two changes:
+
+- **The tolerance comes back down to 5%.** Ten percent asked less of a "blank" column than it should
+  have; five still lets a balloon tail or a hand leaning into the gap through (the test for that case
+  now sits comfortably under 3%, not right against the old ceiling), without reading a lightly toned
+  page as empty.
+- **Both sides of a cut now have to actually have something on them.** The old check only ever asked
+  "is the middle blank?" — never "is there a real strip on either side of it?" A page that is blank
+  corner to corner, or blank on one whole side, answers the first question the same way a real yonkoma
+  page does. It now needs at least 1% ink on *each* side of the candidate cut, which a real strip
+  clears easily and a blank half never does.
+
+If either page is still coming up wrong, the number to move next is that 5% — worth knowing, since it
+may need to come down further on volumes with heavier screentone.
+
+---
+
 ## LightBooks v1.15.0 — The shelf's title scrolls, and its bottom bar is icons
 
 **"Books" was a fixed top bar**, three grid units of screen on every single shelf view, never
