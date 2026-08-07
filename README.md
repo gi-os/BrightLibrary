@@ -8,6 +8,17 @@ fork adds is the phone: a port of the real Light SDK design language, a cover sh
 a hardware wheel, and a package identity that installs alongside any upstream FastRead
 build without colliding.
 
+## Install via BrightMarket
+
+<p align="center">
+  <img src="https://gi-os.github.io/brightmarket-index/assets/brightmarket-qr.png" alt="Scan to open BrightMarket" width="180" />
+</p>
+
+Scan the code above, or visit
+**[gi-os.github.io/brightmarket-index/browse.html](https://gi-os.github.io/brightmarket-index/browse.html)**, to install
+and keep this app updated through **BrightMarket** — no Play Store, no PC
+required.
+
 **Named LightBooks since v1.5, on the surface only.** The launcher says "Books" and the
 release titles say LightBooks. Everything an installed phone depends on is untouched:
 `applicationId` is still `com.lightfastread`, the signing key is the same, the repo is still
