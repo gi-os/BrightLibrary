@@ -1,3 +1,17 @@
+## LightBooks v1.14.2 — One scroll for a page 4-koma couldn't split
+
+**A page with no gutter was still charged four koma stops.** In 4-koma mode, `stepsFor` returned the
+mode's fixed three-scrolls/four-stops count for *every* page once the series was in 4-koma mode — even
+one that measured as unsplittable and is shown whole, at fit-width, because crop found no blank band
+down the middle. A whole page is short; it should step like any other page, usually one scroll, not
+sit behind three empty notches meant for a tall narrow column.
+
+Fixed by checking the page against the same `unsplittable` set the reader already keeps: the fixed
+four-stop count now applies only while the current page actually split into two columns. A page shown
+whole falls through to the ordinary step count, based on its real measured height.
+
+---
+
 ## LightBooks v1.14.1 — A book remembers where you got to
 
 **Reading a book saved your place only when you closed it deliberately.** The page view reported

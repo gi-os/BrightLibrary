@@ -198,7 +198,12 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
         // scrolls, which is four resting points — one per panel — because the first panel is where you
         // start rather than somewhere you scroll to. Dividing by screenfuls instead would land the
         // panel boundaries wherever the screen happened to end.
-        if (fourKoma) return FOURKOMA_SCROLLS
+        //
+        // Only while the page is actually split into two columns, though. A page with no gutter —
+        // crop denied it a strip — is shown whole, at fit-width, and a whole page is short: it steps
+        // like any other page, which is usually one scroll, not the fixed four stops meant for a tall
+        // narrow column.
+        if (fourKoma && pageOf(slot) !in unsplittable) return FOURKOMA_SCROLLS
         val ideal = viewportHeight * (1f - SCREEN_OVERLAP)
         val n = ceil(limit / ideal).toInt().coerceAtLeast(1)
         return if (height > viewportHeight * 2f) maxOf(n, MIN_TALL_STEPS) else n
