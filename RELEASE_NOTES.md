@@ -1,3 +1,16 @@
+## LightBooks v1.15.0 — The shelf's title scrolls, and its bottom bar is icons
+
+**"Books" was a fixed top bar**, three grid units of screen on every single shelf view, never
+moving. It is now the grid's own first row, spanning both columns, so it scrolls away with the
+covers exactly like a book scrolls away in a reader -- more of the shelf, less permanently-parked
+chrome. The empty shelf keeps the title outside the grid, since there is nothing there to scroll.
+
+**The bottom bar is icons now, not text.** Add, Library and Settings were three text labels --
+exactly the SDK's limit once any item is text, so a fourth action would have had nowhere to go.
+Icons allow up to five, and Add now sits last, after Settings, rather than first.
+
+---
+
 ## LightBooks v1.14.3 — The wheel answers a roll of the thumb faster
 
 **Scrolling a comic page took three notches of the wheel before anything moved.** The sensor fires a

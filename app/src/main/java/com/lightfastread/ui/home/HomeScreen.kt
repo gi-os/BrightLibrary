@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.item
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
@@ -44,11 +46,11 @@ import com.gios.light.common.hw.WheelScroll
 import com.lightfastread.ui.light.ColourEffect
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightBottomBar
+import com.lightfastread.ui.light.LightIcons
 import com.lightfastread.ui.light.LightRule
 import com.lightfastread.ui.light.LightText
 import com.lightfastread.ui.light.LightTextVariant
 import com.lightfastread.ui.light.LightThemeTokens
-import com.lightfastread.ui.light.LightTopBar
 import com.lightfastread.ui.light.designVerticalPxToDp
 import com.lightfastread.ui.light.gridUnitsAsDp
 import com.lightfastread.ui.light.lightClickable
@@ -66,9 +68,13 @@ import kotlinx.coroutines.withContext
  * and type scale; the covers are the only thing with hues in them, which is exactly how LightOS
  * treats photographs.
  *
- * Add, Library and Settings live in a [LightBottomBar] rather than in a floating action button and a
- * top bar icon. Three text items, which is exactly the SDK's limit once any item is text — so a
- * fourth thing to do from the shelf has to become an icon or move somewhere else.
+ * **"Books" is not a fixed [LightTopBar]** — it is the grid's own first item, spanning both
+ * columns, so it scrolls off with the rest of the shelf instead of sitting pinned above it. The
+ * empty shelf still shows it outside the grid, since there is nothing there to scroll.
+ *
+ * Library, Settings and Add live in a [LightBottomBar] as icons rather than text — the SDK allows
+ * five icon items but only three once any item is text, and icons are what leaves room to add a
+ * fourth thing later. Add sits last, after Settings, rather than first.
  */
 @Composable
 fun HomeScreen(
@@ -204,11 +210,16 @@ fun HomeScreen(
             .background(colors.background)
             .statusBarsPadding(),
     ) {
-        LightTopBar(title = "Books")
-
         Box(Modifier.fillMaxWidth().weight(1f)) {
             if (books.isEmpty() && !importing) {
-                EmptyShelf(modifier = Modifier.align(Alignment.Center))
+                // Nothing to scroll, so the title stays outside the grid rather than floating
+                // above an otherwise-empty screen with no content to earn it.
+                Column(Modifier.fillMaxSize()) {
+                    ShelfTitle()
+                    Box(Modifier.fillMaxWidth().weight(1f)) {
+                        EmptyShelf(modifier = Modifier.align(Alignment.Center))
+                    }
+                }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(COLUMNS),
@@ -223,6 +234,9 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(1f.gridUnitsAsDp()),
                     verticalArrangement = Arrangement.spacedBy(1f.gridUnitsAsDp()),
                 ) {
+                    // The title is the grid's own first row, spanning every column, so it scrolls
+                    // away with the covers instead of sitting pinned above them in a fixed bar.
+                    item(key = "title", span = { GridItemSpan(maxLineSpan) }) { ShelfTitle() }
                     items(
                         items = entries,
                         // A stack is keyed by its series, a book by its id. Without a stable key
@@ -276,9 +290,14 @@ fun HomeScreen(
 
         LightRule()
         LightBottomBar(
+            // Icons, not text: the SDK allows five icon items but only three once any item is
+            // text, so icons are what leaves room for a fourth thing later. Add sits last, after
+            // Settings, rather than first.
             items = listOf(
-                LightBarItem.Text(
-                    text = "ADD",
+                LightBarItem.Icon(LightIcons.List, onClick = onOpenLibrary),
+                LightBarItem.Icon(LightIcons.Settings, onClick = onOpenSettings),
+                LightBarItem.Icon(
+                    icon = LightIcons.Add,
                     onClick = {
                         pickFile.launch(
                             arrayOf(
@@ -293,10 +312,6 @@ fun HomeScreen(
                         )
                     },
                 ),
-                // Three text items is the SDK's hard limit once any item is text, so this bar is now
-                // full: ADD from storage, LIBRARY from the Calibre server, SETTINGS.
-                LightBarItem.Text(text = "LIBRARY", onClick = onOpenLibrary),
-                LightBarItem.Text(text = "SETTINGS", onClick = onOpenSettings),
             ),
             modifier = Modifier.navigationBarsPadding(),
         )
@@ -356,6 +371,26 @@ fun HomeScreen(
  * next day. A rename clears the timestamp outright, since a new name is a new question.
  */
 private const val COVER_RETRY_MS = 12L * 60 * 60 * 1000
+
+/**
+ * The shelf's own title, standing in for a fixed top bar.
+ *
+ * A grid item rather than a [LightTopBar] — this is what lets it scroll away with the covers.
+ * Left-aligned and full width, matching the inset every cover row already sits inside.
+ */
+@Composable
+private fun ShelfTitle(modifier: Modifier = Modifier) {
+    LightText(
+        text = "Books",
+        variant = LightTextVariant.Heading,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = lightInset(),
+                vertical = 0.5f.gridUnitsAsDp(),
+            ),
+    )
+}
 
 @Composable
 private fun EmptyShelf(modifier: Modifier = Modifier) {
