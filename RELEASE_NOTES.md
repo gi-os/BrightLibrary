@@ -1,3 +1,17 @@
+## LightBooks v1.14.3 — The wheel answers a roll of the thumb faster
+
+**Scrolling a comic page took three notches of the wheel before anything moved.** The sensor fires a
+discrete notch every 35-60ms of travel, and the reader banked three of them into one step -- a
+threshold meant to stop a single stray notch from moving the page, sized to match the text reader's
+page-turn count. For a deliberate scroll it read as a beat of nothing before the page caught up.
+
+Dropped to two notches per step. Still enough to swallow one accidental notch, since a real turn
+arrives as a burst rather than a single tick, but the page now answers a normal roll of the thumb
+without the lag. Page turns and 4-koma strip stops are untouched -- this is the scroll-within-a-page
+threshold only.
+
+---
+
 ## LightBooks v1.14.2 — One scroll for a page 4-koma couldn't split
 
 **A page with no gutter was still charged four koma stops.** In 4-koma mode, `stepsFor` returned the

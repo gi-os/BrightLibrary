@@ -559,8 +559,9 @@ private data class Outgoing(val slot: Int, val scroll: Float)
 /**
  * Turn the wheel into steps.
  *
- * Three notches per step: the sensor fires roughly every 35ms, so one notch per step sends a
- * deliberate quarter-turn of the thumb through half a chapter.
+ * Two notches per step: the sensor fires roughly every 35-60ms per detent, and three notches made a
+ * single deliberate roll of the thumb feel like it wasn't registering. Two is still enough to reject
+ * one stray notch, since a real turn arrives in a burst and a lone one does not.
  */
 @Composable
 private fun WheelPaging(onStep: (Int) -> Unit) {
@@ -627,6 +628,6 @@ private const val PAGE_ENTER_MS = 340
 private const val DIM_MS = 420
 private const val DOUBLE_TAP_ZOOM = 2.5f
 private const val MAX_ZOOM = 6f
-private const val NOTCHES_PER_STEP = 3
+private const val NOTCHES_PER_STEP = 2
 private const val WHEEL_IDLE_MS = 1_500L
 private const val CHROME_VISIBLE_MS = 4_000L
