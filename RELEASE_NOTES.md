@@ -1,3 +1,24 @@
+## LightBooks v1.15.2 — A page turn takes one more notch
+
+**A page was turning when nobody asked it to.** The text reader banked three wheel notches into one
+page turn. Three sounds like a threshold, but the sensor emits a detent every 35ms or so of travel,
+and a thumb parked on the wheel while reading — shifting grip, walking, putting the phone down —
+covers three of them without the hand registering that it moved at all. So the page turned, and the
+only evidence was being a page further on than you remembered.
+
+The count is four now. That is a visibly deliberate roll rather than a brush, and it is the only
+thing that changed: the idle window that resets a part-finished turn, the reversal rule and the
+retarget-while-animating behaviour are all untouched, so a fast spin still resolves to one travel
+rather than a queue of single steps.
+
+**The comic reader is deliberately not included.** It counts its own notches, and that count was
+lowered to two in v1.14.3 on purpose — scrolling within a page is not a page turn and should answer
+sooner. Raising both would have undone that.
+
+Fixes [light-reports#26] — scroll to a new page should be one tick harder.
+
+---
+
 ## LightBooks v1.15.1 — Almost-blank pages stop faking a gutter
 
 **Raising the gutter's ink tolerance to 10% (v1.14.1) fixed real balloon-tails and page numbers, and

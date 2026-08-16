@@ -109,10 +109,17 @@ private const val PAGE_TURN_DRAG_FRACTION = 0.7f
  *
  * The sensor emits a notch roughly every 35ms, so one notch per page made a
  * single deliberate turn of the wheel fly through a handful of pages. Three
- * notches is about a quarter-turn under the thumb: enough that a page turn is
- * something you meant to do.
+ * notches was about a quarter-turn under the thumb, and still turned pages that
+ * were not meant to be turned — a thumb resting on the wheel while reading
+ * clears three detents without the hand noticing. Four asks for a visibly
+ * deliberate roll, which is what a page turn is.
+ *
+ * This is the *text* reader only. The comic reader counts its own notches
+ * (`NOTCHES_PER_STEP` in ComicReader.kt), and that one was deliberately lowered
+ * to two in v1.14.3 because a scroll within a page is not a page turn and wants
+ * to answer sooner.
  */
-private const val NOTCHES_PER_PAGE = 3
+private const val NOTCHES_PER_PAGE = 4
 
 /** A turn abandoned for this long starts counting again, matching light-common's own idle
  *  window, so a stray brush never banks toward a later real turn. */
