@@ -181,7 +181,7 @@ Upstream FastRead is unchanged in behaviour here. This fork only touches present
 | The brightness wheel scrolls every list | The LPIII has a hardware wheel and upstream has never heard of it. Lists here are the one place the touchscreen is worst — a 472dp-tall panel behind matte glass, with the whole reader surface already spoken for by hold-and-swipe gestures. |
 | `targetSdk` 34; package fully renamed to `com.lightfastread` | LightOS is Android 14, and the light-sdk emulator profile is API 34; no reason to opt into 35/36 behaviour the device will never see. Both `namespace` and `applicationId` are `com.lightfastread`, so this shares no identifier with upstream FastRead — not the package, the R class, or the permission and provider authorities AndroidX derives from them. It installs cleanly alongside any other FastRead build. |
 
-Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
+Part of the [Bright* collection](https://brightmarket.gzl.dev).
 
 ### The wheel
 
