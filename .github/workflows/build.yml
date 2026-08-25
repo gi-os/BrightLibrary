@@ -3,6 +3,8 @@ name: Build APK
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
