@@ -581,8 +581,6 @@ RSVP as a reading technique has been around for decades; FastRead's contribution
 
 ## Bright\*
 
-*EPUBs, comics and a whole Calibre library on an e-ink panel that renders four shades of grey.*
-
 26 open-source apps for the **Light Phone III** — camera, music, maps, messages,
 reading, transit, games. The phone has no app store, so they install by sideload: scan one
 code from **[brightmarket.gzl.dev](https://brightmarket.gzl.dev)** and BrightMarket keeps them updated.
