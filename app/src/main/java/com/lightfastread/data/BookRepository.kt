@@ -6,6 +6,7 @@ import androidx.compose.runtime.toMutableStateList
 import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.comic.ComicPages
 import com.lightfastread.parser.HtmlStripper
+import com.lightfastread.reading.Sessions
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -185,6 +186,10 @@ class BookRepository private constructor(private val appContext: Context) {
         if (current.currentWordIndex == wordIndex) return
         books[idx] = current.copy(currentWordIndex = wordIndex)
         persist()
+        // A sitting, coalesced. Called at RSVP speed like the line below, so it does the same thing
+        // that one does: extends the session already open and only writes a new one after a gap.
+        // See reading/Sessions.kt — this is the only place in the app that knows reading happened.
+        runCatching { Sessions.note(appContext, books[idx], wordIndex) }
         // Fires on every word at reading speed, so it has to be cheap: [ProgressSync.onProgress] is
         // a clock comparison and a return in all but one call a minute.
         if (current.calibreUuid != null) ProgressSync.onProgress(appContext)

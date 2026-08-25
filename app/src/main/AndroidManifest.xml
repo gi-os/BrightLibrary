@@ -65,6 +65,16 @@
             the trust boundary: LightSyncBackup rejects any caller that is not LightSync by
             package and by signing certificate, checked on every call.
         -->
+        <!--
+          What you read on a day, for BrightNotebook's timeline. Its own provider rather than a
+          path on the backup one next door: that one hands over the whole shelf and checks its
+          caller's signature for it, and this one hands over a day. See reading/ReadingProvider.kt.
+        -->
+        <provider
+            android:name=".reading.ReadingProvider"
+            android:authorities="com.lightfastread.reading"
+            android:exported="true" />
+
         <provider
             android:name=".backup.Backup"
             android:authorities="${applicationId}.lightsync.backup"

@@ -3,6 +3,7 @@ package com.lightfastread.backup
 import com.gios.light.common.sync.Contents
 import com.gios.light.common.sync.FileStore
 import com.gios.light.common.sync.LightSyncBackup
+import com.lightfastread.reading.Sessions
 
 /**
  * What LightBooks offers LightSync.
@@ -43,5 +44,8 @@ class Backup : LightSyncBackup() {
     override fun stores() = listOf(
         FileStore("shelf", Contents(prefs = listOf("fastread_books"))),
         FileStore("settings", Contents(prefs = listOf("fastread_settings"))),
+        // The reading log. Restoring a shelf without it would put every book back and leave the
+        // day it was read on blank, which is the half of the story a diary keeps.
+        FileStore("reading", Contents(prefs = listOf(Sessions.FILE))),
     )
 }

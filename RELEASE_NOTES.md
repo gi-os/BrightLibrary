@@ -1,3 +1,30 @@
+## LightBooks v1.16 — it knows when you read, not just where you stopped
+
+**A reading log.** The shelf has always known *where* you are in a book and never *when* you were
+there: a position, an import date, and nothing in between. So "what did you read today" could not be
+answered from this app at all — which is the one thing BrightNotebook wanted from it, and the reason
+a day with an hour of reading in it looked like a day nothing happened on.
+
+**Sittings, not page turns.** Progress is written on every word at RSVP speed, several times a
+second, so a record per write would be tens of thousands of rows a day. A session is opened by the
+first progress in a while and extended by everything after it, and ten minutes of silence starts a
+new one — the same coalescing the Calibre push already does, for the same reason.
+
+**Words, or pages.** A session carries the position at each end rather than a percentage: a
+percentage means something different in every book, and "eleven pages" does not. For a comic the
+position *is* the page, which is why the shelf has always kept those in one field.
+
+**Opening a book to see where you were is not reading.** A session that advanced nothing and lasted
+under a minute is dropped on the way out — which is only knowable afterwards, so it is filtered at
+the read rather than never written.
+
+`content://com.lightfastread.reading/reading/2026-08-25` serves a day of it to BrightNotebook. Its
+own provider rather than a path on the LightSync one next door: that one hands over the whole shelf
+and checks its caller's signing certificate for it, and this one hands over a day.
+
+The log travels with the shelf in a LightSync backup, as its own store. A restore that put every
+book back and left the days blank would be returning half the story.
+
 ## LightBooks v1.15.2 — A page turn takes one more notch
 
 **A page was turning when nobody asked it to.** The text reader banked three wheel notches into one
