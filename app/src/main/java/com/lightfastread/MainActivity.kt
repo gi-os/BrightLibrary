@@ -20,6 +20,9 @@ import com.gios.light.common.hw.LightKey
 import com.gios.light.common.hw.LightKeys
 import com.gios.light.common.hw.LocalWheelBus
 import com.gios.light.common.hw.WheelBus
+import com.lightfastread.hw.LocalVolumeBus
+import com.lightfastread.hw.VolumeBus
+import com.lightfastread.hw.volumePageStep
 import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.data.BookKind
 import com.lightfastread.ui.comic.ComicReader
@@ -39,6 +42,14 @@ class MainActivity : ComponentActivity() {
     /** Wheel notches on their way to whichever screen is up. */
     private val wheel = WheelBus()
 
+    /**
+     * Volume presses on their way to whichever reader has claimed them.
+     *
+     * Nothing claims it unless the setting is on and a reader is on screen, and until something does
+     * every volume press goes to the system untouched. See `hw/VolumeKeys.kt`.
+     */
+    private val volume = VolumeBus()
+
     // Every hardware key arrives here before the view hierarchy sees it - the
     // DecorView calls the window callback first - so the wheel wins even when
     // something focusable is under it. Both halves of a notch are consumed: one
@@ -55,6 +66,21 @@ class MainActivity : ComponentActivity() {
                 return true
             }
             else -> Unit
+        }
+        // Volume up and down turn pages, when a reader has claimed them. Consuming the key is the
+        // whole feature and also its whole cost: the system never sees it, so there is no volume
+        // slider and no change in volume while that reader is up. Hence the claim, and hence the
+        // setting being off out of the box.
+        //
+        // Both halves of the press are consumed - letting the UP through would leave the system
+        // acting on half a press - and a held key is ignored after the first DOWN, so leaning on the
+        // button does not autorepeat through the chapter.
+        if (volume.claimed) {
+            val step = volumePageStep(event.keyCode)
+            if (step != null) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) volume.send(step)
+                return true
+            }
         }
         return super.dispatchKeyEvent(event)
     }
@@ -120,7 +146,10 @@ class MainActivity : ComponentActivity() {
             FastReadTheme(themeMode = settings.themeMode) {
                 // Every screen below can reach the wheel; the sheets reach it too,
                 // through their own windows. See light-common's hw/Wheel.kt.
-                CompositionLocalProvider(LocalWheelBus provides wheel) {
+                CompositionLocalProvider(
+                    LocalWheelBus provides wheel,
+                    LocalVolumeBus provides volume,
+                ) {
                     AppNav()
                 }
                 // Shake to report, the crash offer on next launch, and the app's own noticed

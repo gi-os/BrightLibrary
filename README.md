@@ -27,7 +27,7 @@ rename updates in place — no reinstall, no lost books, and an existing Obtaini
 working without being re-added. Every source package is still `com.lightfastread` too; the
 namespace is load-bearing for the R class and the provider authorities.
 
-**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.15.2-light.1`.
+**Current version:** `baseVersionName` in `app/build.gradle.kts` is `1.17.0-light.1`.
 CI stamps `versionCode` and appends `-bN` to `baseVersionName` on every push to `main` —
 see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
@@ -118,6 +118,8 @@ see [Building](#building) below. Per-release notes are in [RELEASE_NOTES.md](REL
 `git log` from `c7d1a4f` onward is this fork; the repo's `Initial commit` is the
 upstream import point.
 
+- v1.17 — An option for the volume keys to turn pages, in both readers, off by default
+  (see [RELEASE_NOTES.md](RELEASE_NOTES.md))
 - v1.6 — Sweep for missing covers instead of searching once, widen the query, and let a
   book's title and author be corrected (FIX NAME)
 - v1.5 — Rename to LightBooks, port the Light SDK design language, shelf of covers,

@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.gios.light.common.hw.WheelSteps
+import com.lightfastread.hw.VolumePageTurns
 import com.lightfastread.data.BookRepository
 import com.lightfastread.data.SeriesTitle
 import com.lightfastread.data.SettingsRepository
@@ -291,6 +292,17 @@ fun ComicReader(bookId: String, onBack: () -> Unit) {
         LaunchedEffect(viewportH) { viewportHeight = viewportH }
 
         WheelPaging { direction -> scrollOrTurn(direction) }
+
+        // The volume keys, when they have been asked for, do exactly what one settled turn of the
+        // wheel does: the next step down this page, or the next page once the steps run out. A press
+        // goes straight to `scrollOrTurn` rather than through WheelPaging's accumulator, which banks
+        // notches and would swallow every press but the second.
+        //
+        // This screen is a plain NavHost destination, so it lives in the Activity's window and the
+        // Activity's dispatchKeyEvent is what catches the key; VolumePageTurns claims the bus for as
+        // long as the reader is on screen and drops it on the way out, so the volume keys go back to
+        // being volume keys the moment you leave the book.
+        VolumePageTurns(enabled = settings.volumeKeysTurnPages) { step -> scrollOrTurn(step) }
 
         // The page being left behind: still exactly where it was, going dark under the new one.
         outgoing?.let { leaving ->

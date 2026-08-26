@@ -54,6 +54,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.lightfastread.data.TitleStyle
 import com.gios.light.common.hw.WheelInDialog
 import com.gios.light.common.hw.WheelSteps
+import com.lightfastread.hw.VolumePageTurns
 import com.lightfastread.ui.light.LightBarItem
 import com.lightfastread.ui.light.LightIcons
 import com.lightfastread.ui.light.LightRule
@@ -169,6 +170,11 @@ fun EreaderScreen(
     fontSizeSp: Int,
     initialWordIndex: Int,
     /**
+     * Whether the volume keys turn pages here. Off unless the reader asked for it in Settings, since
+     * a key spent on a page turn is one the system never sees.
+     */
+    volumeKeysTurnPages: Boolean,
+    /**
      * Where the reader is now, reported on every page turn.
      *
      * Not only on the way out, which is what this used to do and is why a book kept reopening at the
@@ -280,6 +286,20 @@ fun EreaderScreen(
                     val from = wheelTarget ?: pagerState.currentPage
                     wheelTarget = (from + direction).coerceIn(0, pages.size - 1)
                 }
+            }
+        }
+        // One press, one page - straight to the same target the wheel names, so a press and a
+        // completed roll of the wheel do exactly the same thing from here on. Deliberately *not*
+        // routed through the notch accumulator above: NOTCHES_PER_PAGE would swallow three presses
+        // out of every four.
+        //
+        // This is inside the Dialog for a reason. The Activity's dispatchKeyEvent does not run while
+        // this window is up, which is the same reason WheelInDialog exists; VolumePageTurns borrows
+        // this window's own callback when it finds itself in one.
+        VolumePageTurns(enabled = volumeKeysTurnPages) { step ->
+            if (pages.isNotEmpty()) {
+                val from = wheelTarget ?: pagerState.currentPage
+                wheelTarget = (from + step).coerceIn(0, pages.size - 1)
             }
         }
         LaunchedEffect(wheelTarget) {

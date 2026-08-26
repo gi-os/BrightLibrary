@@ -108,6 +108,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                 checked = s.showZoneGuides,
                 onToggle = { v -> repo.update { it.copy(showZoneGuides = v) } },
             )
+            ToggleRow(
+                label = "Volume keys turn pages",
+                caption = "Up goes forward, down goes back: a page in a book, one step down " +
+                    "a comic page. While a book is open the keys stop changing the volume.",
+                checked = s.volumeKeysTurnPages,
+                onToggle = { v -> repo.update { it.copy(volumeKeysTurnPages = v) } },
+            )
             Spacer(Modifier.height(12f.designVerticalPxToDp()))
             RowLabel("Swipe band mode")
             SwipeMode.values().forEach { mode ->

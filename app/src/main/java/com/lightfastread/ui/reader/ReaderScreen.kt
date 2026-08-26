@@ -646,6 +646,7 @@ fun ReaderScreen(
                     fontKey = settings.fontFamily,
                     fontSizeSp = settings.readerFontSizeSp,
                     initialWordIndex = currentIndex,
+                    volumeKeysTurnPages = settings.volumeKeysTurnPages,
                     // Written straight through rather than through `jumpTo`: a page turn is reading,
                     // not a jump, and putting every one of them on the back stack would make the
                     // history arrow walk back a page at a time. Persisted here and now, because the
