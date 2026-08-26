@@ -153,6 +153,8 @@ provision a second JDK over the network on every run.
 
 ---
 
+<img src="docs/icon.png" alt="" width="72" align="left" />
+
 # BrightLibrary
 
 **An ebook reader for the Light Phone III, forked from [FastRead](https://github.com/fluffyspace/FastRead).**

@@ -1,225 +1,189 @@
 #!/usr/bin/env python3
-"""
-Generate the LightFastread launcher icon.
+"""Build BrightLibrary's launcher mark.
 
-Design language is taken from gi-os/LightFog: heavy white line art, round caps,
-on a full-bleed pure-black square. LightFog draws a folded map with a dashed
-route running to a ringed pin. This is the reading equivalent - an open book
-with dashed lines of text, the current word ringed - so the two tools read as
-siblings on the device.
+Part of the unified Bright* icon set. Every mark in the collection is drawn on
+the same 108x108 adaptive-icon canvas, inside the same 18..90 safe zone, at the
+same two stroke weights, in white on black and nothing else. The Light Phone
+III panel is black and white; a mark with a mid-tone in it dithers.
 
-Measured from LightFog's icon.png (1024x1024):
-  outline stroke   30px  (2.93% of canvas)
-  detail stroke    24px  (2.34%)
-  ink bounding box 0.616 wide x 0.458 tall, optically centred
+Edit MARK below and re-run. The vector outputs need nothing but the standard
+library. The raster outputs need Pillow and cairosvg, and are skipped with a
+message if those are missing, because the vectors are what actually ship on
+API 26 and up.
 
-Geometry is defined once, in a 1024-unit design space, and emitted as both an
-SVG (rasterised to the mipmap WebPs) and an Android VectorDrawable (the adaptive
-icon's foreground). One source of truth, so the two can't drift.
-
-Usage:  python3 scripts/generate_icon.py
-Needs:  pip install cairosvg pillow
+    python3 scripts/generate_icon.py
 """
 
-import io
 import os
-import subprocess
-import sys
+import re
 
-S = 1024                      # design space
-OUTLINE = 30                  # book outline stroke
-DETAIL = 24                   # text lines and focal ring stroke
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# --- book -----------------------------------------------------------------
-SPINE_X = 512
-SPINE_TOP, SPINE_BOT = 312, 746
-OUTER_L, OUTER_R = 198, 826
-OUTER_TOP, OUTER_BOT = 352, 706
-SAG = 14                      # how far the leaf edges bow. LightFog's map
-                              # panels are near-straight, so keep this small.
+# ---- the mark ---------------------------------------------------------------
+# Each entry is (path data, stroke width, even-odd fill). A stroke width of 0
+# means the path is filled instead of stroked.
 
-def page(sign):
-    """One leaf of the book. sign=-1 left, +1 right."""
-    ox = SPINE_X + sign * (OUTER_L - SPINE_X) * -1 if sign > 0 else OUTER_L
-    if sign > 0:
-        ox = OUTER_R
-    # Top edge sags away from the spine, bottom edge mirrors it, so the leaf
-    # reads as paper under its own weight rather than a flat rectangle.
-    cx1 = SPINE_X + sign * 120
-    cx2 = ox - sign * 120
-    return (
-        f"M {SPINE_X},{SPINE_TOP} "
-        f"C {cx1},{SPINE_TOP - SAG} {cx2},{OUTER_TOP - SAG} {ox},{OUTER_TOP} "
-        f"L {ox},{OUTER_BOT} "
-        f"C {cx2},{OUTER_BOT + SAG} {cx1},{SPINE_BOT + SAG} {SPINE_X},{SPINE_BOT} "
-        f"Z"
-    )
+MARK = [
+    ('M54,36 C47,30 37,28 22,29 V73 C37,72 47,74 54,80', 5, False),
+    ('M54,36 C61,30 71,28 86,29 V73 C71,72 61,74 54,80', 5, False),
+    ('M54,36 V80', 4, False),
+    ('M30,44 H46', 4, False),
+    ('M30,56 H46', 4, False),
+    ('M62,44 H78', 4, False),
+    ('M62,56 H78', 4, False),
+]
 
-BOOK = [page(-1), page(1), f"M {SPINE_X},{SPINE_TOP} L {SPINE_X},{SPINE_BOT}"]
+# Where the mark is written, and at what viewport. 108 is the adaptive-icon
+# canvas; 240 is the LightOS splash mark, which is the only place a LightOS
+# tool can show a mark of its own.
+TARGETS = [
+    ('app/src/main/res/drawable/ic_launcher_foreground.xml', 108),
+]
 
-# --- lines of text --------------------------------------------------------
-# Left leaf: three dashed rows. Dashes are emitted as explicit segments because
-# VectorDrawable has no stroke-dasharray, and hand-placing them keeps the raster
-# and the vector byte-identical in shape.
-def dashes(x0, x1, y, dash, gap):
-    segs, x = [], x0
-    while x < x1:
-        x2 = min(x + dash, x1)
-        if x2 - x > dash * 0.45:          # drop a runt dash at the end
-            segs.append(f"M {x:.0f},{y} L {x2:.0f},{y}")
-        x += dash + gap
-    return segs
+# Legacy rasters: (path, pixels, circular mask, inset, transparent plate).
+# Inset shrinks the mark inside the plate - a legacy square icon gets no
+# launcher mask, so it needs the margin the mask would otherwise have given it.
+# A transparent plate is for an adaptive foreground layer, which is composited
+# over the plate rather than carrying one of its own.
+RASTERS = [
+    ('app/src/main/res/mipmap-hdpi/ic_launcher.webp', 72, False, 0.72, False),
+    ('app/src/main/res/mipmap-hdpi/ic_launcher_round.webp', 72, True, 0.72, False),
+    ('app/src/main/res/mipmap-mdpi/ic_launcher.webp', 48, False, 0.72, False),
+    ('app/src/main/res/mipmap-mdpi/ic_launcher_round.webp', 48, True, 0.72, False),
+    ('app/src/main/res/mipmap-xhdpi/ic_launcher.webp', 96, False, 0.72, False),
+    ('app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp', 96, True, 0.72, False),
+    ('app/src/main/res/mipmap-xxhdpi/ic_launcher.webp', 144, False, 0.72, False),
+    ('app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp', 144, True, 0.72, False),
+    ('app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp', 192, False, 0.72, False),
+    ('app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp', 192, True, 0.72, False),
+]
 
-TEXT = []
-for y in (424, 512, 600):
-    TEXT += dashes(258, 454, y, 64, 36)
+# Files that are the same in every app: the black plate, and the adaptive-icon
+# wrapper that points the launcher at the plate and the mark.
+STATIC = [
+    ('app/src/main/res/drawable/ic_launcher_background.xml', '<?xml version="1.0" encoding="utf-8"?>\n<!-- Solid black plate. The whole set is black and white; nothing else belongs here. -->\n<vector xmlns:android="http://schemas.android.com/apk/res/android"\n    android:width="108dp"\n    android:height="108dp"\n    android:viewportWidth="108"\n    android:viewportHeight="108">\n    <path\n        android:pathData="M0,0 H108 V108 H0 Z"\n        android:fillColor="#000000" />\n</vector>\n'),
+    ('app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml', '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@drawable/ic_launcher_background" />\n    <foreground android:drawable="@drawable/ic_launcher_foreground" />\n    <monochrome android:drawable="@drawable/ic_launcher_foreground" />\n</adaptive-icon>\n'),
+    ('app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml', '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@drawable/ic_launcher_background" />\n    <foreground android:drawable="@drawable/ic_launcher_foreground" />\n    <monochrome android:drawable="@drawable/ic_launcher_foreground" />\n</adaptive-icon>\n'),
+]
 
-# The right leaf holds a single ringed word. The asymmetry is the idea: a page of
-# text on the left, collapsed to one focal word on the right. The ring echoes the
-# pins LightFog's dashed route runs between.
-# Ring plus a centred dot: a focal reticle. A horizontal bar inside the ring was
-# the first attempt and read as a "no entry" glyph at small sizes.
-#
-# The dot is a *filled* circle, not a zero-length round-capped stroke. SVG renders
-# the latter as a dot, but Android's VectorDrawable is not required to and Skia
-# drops it, which would have shipped an empty ring to the device while the
-# preview PNGs looked correct.
-FOCAL_C = (672, 512)
-FOCAL_R = 82
-FOCAL_DOT = 30
+STROKE = ('        android:fillColor="#00000000"\n'
+          '        android:strokeColor="#FFFFFF"\n'
+          '        android:strokeWidth="%g"\n'
+          '        android:strokeLineCap="round"\n'
+          '        android:strokeLineJoin="round" />')
 
-def svg(size, bg="#000000", pad=0.0):
-    """pad shrinks the art toward the centre, for the adaptive-icon safe zone."""
-    k = 1.0 - pad
-    off = S * pad / 2
-    body = []
-    for d in BOOK:
-        body.append(f'<path d="{d}" fill="none" stroke="#FFFFFF" '
-                    f'stroke-width="{OUTLINE}" stroke-linecap="round" stroke-linejoin="round"/>')
-    for d in TEXT:
-        body.append(f'<path d="{d}" fill="none" stroke="#FFFFFF" '
-                    f'stroke-width="{DETAIL}" stroke-linecap="round"/>')
-    body.append(f'<circle cx="{FOCAL_C[0]}" cy="{FOCAL_C[1]}" r="{FOCAL_R}" '
-                f'fill="none" stroke="#FFFFFF" stroke-width="{DETAIL}"/>')
-    body.append(f'<circle cx="{FOCAL_C[0]}" cy="{FOCAL_C[1]}" r="{FOCAL_DOT}" fill="#FFFFFF"/>')
-    rect = f'<rect width="{S}" height="{S}" fill="{bg}"/>' if bg else ""
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
-            f'viewBox="0 0 {S} {S}">{rect}'
-            f'<g transform="translate({off},{off}) scale({k})">' + "".join(body) + "</g></svg>")
+HEADER = '''<?xml version="1.0" encoding="utf-8"?>
+<!--
+  BrightLibrary launcher mark. One of the unified Bright* set: 108 canvas, 18..90
+  safe zone, white on black, no greys and no colour anywhere.
 
-
-def vector_drawable():
-    """Adaptive-icon foreground: 108dp viewport, art inside the 72dp safe zone."""
-    k = 72.0 / 108.0 * (108.0 / S)          # design units -> dp, shrunk to safe zone
-    off = (108.0 - S * k) / 2.0
-    def conv(d):
-        # Scale every coordinate from the 1024 design space into 108dp.
-        out, num = [], ""
-        for ch in d:
-            if ch.isdigit() or ch == ".":
-                num += ch
-            else:
-                if num:
-                    out.append(f"{float(num) * k + off:.3f}")
-                    num = ""
-                out.append(ch)
-        if num:
-            out.append(f"{float(num) * k + off:.3f}")
-        return "".join(out)
-
-    paths = []
-    for d in BOOK:
-        paths.append(f'''    <path
-        android:pathData="{conv(d)}"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="{OUTLINE * k:.3f}"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />''')
-    for d in TEXT:
-        paths.append(f'''    <path
-        android:pathData="{conv(d)}"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="{DETAIL * k:.3f}"
-        android:strokeLineCap="round" />''')
-    cx, cy, r = FOCAL_C[0] * k + off, FOCAL_C[1] * k + off, FOCAL_R * k
-    circle = (f"M {cx - r:.3f},{cy:.3f} "
-              f"a {r:.3f},{r:.3f} 0 1,0 {2 * r:.3f},0 "
-              f"a {r:.3f},{r:.3f} 0 1,0 {-2 * r:.3f},0 Z")
-    paths.append(f'''    <path
-        android:pathData="{circle}"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="{DETAIL * k:.3f}" />''')
-    dr = FOCAL_DOT * k
-    dot = (f"M {cx - dr:.3f},{cy:.3f} "
-           f"a {dr:.3f},{dr:.3f} 0 1,0 {2 * dr:.3f},0 "
-           f"a {dr:.3f},{dr:.3f} 0 1,0 {-2 * dr:.3f},0 Z")
-    paths.append(f'''    <path
-        android:pathData="{dot}"
-        android:fillColor="#FFFFFF" />''')
-
-    return ('<?xml version="1.0" encoding="utf-8"?>\n'
-            '<vector xmlns:android="http://schemas.android.com/apk/res/android"\n'
-            '    android:width="108dp"\n'
-            '    android:height="108dp"\n'
-            '    android:viewportWidth="108"\n'
-            '    android:viewportHeight="108">\n'
-            + "\n".join(paths) + "\n</vector>\n")
-
-
-BACKGROUND = '''<?xml version="1.0" encoding="utf-8"?>
-<!-- Pure black. On the Light Phone III's OLED these pixels are simply off. -->
+  Generated by scripts/generate_icon.py - edit the geometry there, not here.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="#000000"
-        android:pathData="M0,0h108v108h-108z" />
+    android:width="%(vp)sdp"
+    android:height="%(vp)sdp"
+    android:viewportWidth="%(vp)s"
+    android:viewportHeight="%(vp)s">
+%(paths)s
 </vector>
 '''
 
-DENSITIES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+
+def scale_path(d, k):
+    """Multiply every number in a path by k.
+
+    Safe on this data because every path is absolute and uniformly scaled, so
+    arc rx/ry scale with everything else. The large-arc and sweep flags are 0
+    or 1 and a naive pass would scale them into nonsense, so each arc command
+    is matched whole and its three flag fields copied through untouched."""
+    if k == 1.0:
+        return d
+    num = re.compile(r'-?\d*\.?\d+')
+    arc = re.compile(r'A\s*(-?[\d.]+)\s*,?\s*(-?[\d.]+)\s+(-?[\d.]+)\s+([01])\s*,?\s*([01])\s+')
+
+    def one(s):
+        return ('%.3f' % (float(s) * k)).rstrip('0').rstrip('.')
+
+    def plain(s):
+        return num.sub(lambda m: one(m.group(0)), s)
+
+    out, i = [], 0
+    for m in arc.finditer(d):
+        out.append(plain(d[i:m.start()]))
+        out.append('A%s,%s %s %s %s ' % (one(m.group(1)), one(m.group(2)),
+                                         m.group(3), m.group(4), m.group(5)))
+        i = m.end()
+    out.append(plain(d[i:]))
+    return ''.join(out)
 
 
-def main():
-    import cairosvg
-    from PIL import Image
+def render(vp):
+    k = vp / 108.0
+    body = []
+    for d, w, even in MARK:
+        pd = scale_path(d, k)
+        if w == 0:
+            ft = '\n        android:fillType="evenOdd"' if even else ''
+            body.append('    <path\n        android:pathData="%s"\n'
+                        '        android:fillColor="#FFFFFF"%s />' % (pd, ft))
+        else:
+            body.append('    <path\n        android:pathData="%s"\n%s'
+                        % (pd, STROKE % (w * k)))
+    return HEADER % {'vp': vp, 'paths': '\n'.join(body)}
 
-    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-    res = os.path.join(root, "app/src/main/res")
 
-    def render(size, round_mask=False):
-        png = cairosvg.svg2png(bytestring=svg(size).encode(),
-                               output_width=size * 4, output_height=size * 4)
-        im = Image.open(io.BytesIO(png)).convert("RGBA")
-        if round_mask:
-            from PIL import ImageDraw
-            mask = Image.new("L", im.size, 0)
-            ImageDraw.Draw(mask).ellipse((0, 0, im.size[0] - 1, im.size[1] - 1), fill=255)
+def svg(inset=1.0, transparent=False):
+    m = (1 - inset) * 54
+    s = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">']
+    if not transparent:
+        s.append('<rect width="108" height="108" fill="#000000"/>')
+    s += [
+         '<g transform="translate(%.3f,%.3f) scale(%s)">' % (m, m, inset)]
+    for d, w, even in MARK:
+        if w == 0:
+            fr = ' fill-rule="evenodd"' if even else ''
+            s.append('<path d="%s" fill="#FFFFFF"%s/>' % (d, fr))
+        else:
+            s.append('<path d="%s" fill="none" stroke="#FFFFFF" stroke-width="%s" '
+                     'stroke-linecap="round" stroke-linejoin="round"/>' % (d, w))
+    s.append('</g></svg>')
+    return ''.join(s)
+
+
+def write(rel, text):
+    p = os.path.join(ROOT, rel)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    open(p, 'w').write(text)
+    print('wrote', rel)
+
+
+def rasters():
+    try:
+        import io
+        import cairosvg
+        from PIL import Image, ImageDraw
+    except ImportError:
+        print('Pillow/cairosvg not installed - skipped the rasters. The adaptive '
+              'icon is what ships on API 26 and up.')
+        return
+    for rel, px, round_, inset, transparent in RASTERS:
+        raw = cairosvg.svg2png(bytestring=svg(inset, transparent).encode(),
+                               output_width=px * 4, output_height=px * 4)
+        im = Image.open(io.BytesIO(raw)).convert('RGBA')
+        if round_:
+            mask = Image.new('L', im.size, 0)
+            ImageDraw.Draw(mask).ellipse([0, 0, im.size[0] - 1, im.size[1] - 1], fill=255)
             im.putalpha(mask)
-        return im.resize((size, size), Image.LANCZOS)
-
-    for d, px in DENSITIES.items():
-        for name, rnd in (("ic_launcher", False), ("ic_launcher_round", True)):
-            out = os.path.join(res, f"mipmap-{d}", f"{name}.webp")
-            render(px, rnd).save(out, "WEBP", lossless=True, quality=100)
-            print("wrote", os.path.relpath(out, root))
-
-    fg = os.path.join(res, "drawable/ic_launcher_foreground.xml")
-    open(fg, "w").write(vector_drawable())
-    print("wrote", os.path.relpath(fg, root))
-
-    bg = os.path.join(res, "drawable/ic_launcher_background.xml")
-    open(bg, "w").write(BACKGROUND)
-    print("wrote", os.path.relpath(bg, root))
-
-    # Reference art, same role as LightFog's assets/images/icon.png
-    ref = os.path.join(root, "docs/icon.png")
-    os.makedirs(os.path.dirname(ref), exist_ok=True)
-    render(1024).convert("RGB").save(ref)
-    print("wrote", os.path.relpath(ref, root))
+        im = im.resize((px, px), Image.LANCZOS)
+        p = os.path.join(ROOT, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        im.save(p, 'WEBP' if rel.endswith('.webp') else 'PNG')
+        print('wrote', rel)
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    for rel, vp in TARGETS:
+        write(rel, render(vp))
+    for rel, text in STATIC:
+        write(rel, text)
+    rasters()
