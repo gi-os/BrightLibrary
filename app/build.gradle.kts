@@ -124,7 +124,7 @@ dependencies {
     // The shared Light library: the wheel, the hardware keys, shake-to-report and the
     // LightSync backup provider. MIT, consumed by this GPL-3.0 fork — which is fine in that
     // direction; nothing from this repo goes back the other way.
-    implementation("com.gios:light-common:1.2.1")
+    implementation("com.gios:light-common:1.7.0")
     // What makes the AAR's baseline profile actually get applied: below API 31 nothing on the
     // device reads a profile on its own, so without this the profile ships and is ignored.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
