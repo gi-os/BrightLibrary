@@ -118,7 +118,7 @@ data class Settings(
      * **Off by default, and it has to be.** A key that turns a page is a key the system never sees:
      * while a reader is open with this on there is no volume slider and no volume change, because the
      * press was spent on the book. That is a fair trade for someone who asked for it and a broken
-     * phone for someone who did not, so it is opt-in. Volume up goes forward, matching the wheel.
+     * phone for someone who did not, so it is opt-in. Volume down goes forward, as on any e-reader.
      */
     val volumeKeysTurnPages: Boolean = false,
 )

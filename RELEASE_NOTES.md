@@ -1,3 +1,27 @@
+## LightBooks v1.18 — Volume down turns forward
+
+**The volume keys turn the other way now.** Down is forward, up is back. v1.17 matched them to the
+wheel, which means forward when it is rolled up; a book asked for the opposite in the hand. The lower
+key is the one under the thumb at rest, forward is the press you make a few hundred times a book, and
+every other e-reader with volume page turns — KOReader among them — already puts forward on volume
+down. Agreeing with the wheel bought less than reading the way a book actually gets read.
+
+Nothing else about the feature changed. It is still **Settings → Input → "Volume keys turn pages"**,
+still off out of the box, still claimed only while a reader is on screen so the keys are volume keys
+again the moment you are back on the shelf. One press is still one page — the key going down, first
+press only, so leaning on the button does not autorepeat through a chapter. In a comic, forward is
+still the next step down the page before the next page.
+
+Both readers flip together: the direction lives in one function that the text reader's borrowed dialog
+callback and the comic reader's Activity key stream both call, so there is no way for the two to
+disagree.
+
+**Still unverified on the device**, exactly as in v1.17: Light patched five scancodes into the keymap
+for the wheel, its click, focus and camera, and volume is not among them. If the toggle is on and
+pages do not turn either way, that is a keymap answer rather than a reader one.
+
+---
+
 ## LightBooks v1.17 — The volume keys turn pages, if you ask them to
 
 **Settings → Input → "Volume keys turn pages".** Off out of the box, on in both readers the moment
@@ -11,11 +35,9 @@ phone that appears to have lost its volume buttons to somebody who did not, so t
 while the setting is on and a reader is actually on screen. The claim is dropped on the way out of the
 book; back on the shelf the keys are volume keys again.
 
-**Up goes forward, which is one thing this does differently from KOReader** — that turns forward on
-volume *down*. The wheel already means forward when it is rolled up, and two hardware controls an inch
-apart disagreeing about which way the book goes is worse than disagreeing with another app. In a comic
-a press does what one settled turn of the wheel does: the next step down the page, then the next page
-once the steps run out.
+**Up went forward in this release, which v1.18 reversed** — see the v1.18 notes above; forward is
+volume *down* from that build on. In a comic a press does what one settled turn of the wheel does: the
+next step down the page, then the next page once the steps run out.
 
 **The interesting part is that the two readers cannot catch the key the same way.** The Activity sees
 every hardware key before the view hierarchy does — that is how the wheel has always worked — but the

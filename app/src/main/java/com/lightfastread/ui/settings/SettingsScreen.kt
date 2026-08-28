@@ -110,7 +110,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
             ToggleRow(
                 label = "Volume keys turn pages",
-                caption = "Up goes forward, down goes back: a page in a book, one step down " +
+                caption = "Down goes forward, up goes back: a page in a book, one step down " +
                     "a comic page. While a book is open the keys stop changing the volume.",
                 checked = s.volumeKeysTurnPages,
                 onToggle = { v -> repo.update { it.copy(volumeKeysTurnPages = v) } },

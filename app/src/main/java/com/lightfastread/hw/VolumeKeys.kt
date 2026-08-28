@@ -20,18 +20,20 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Which way a volume key turns a page: +1 forward, -1 back, null for any other key.
  *
- * **Up is forward, which is not what KOReader does** - it turns forward on volume *down*. The wheel
- * on this phone already means forward when it is rolled up (`WheelUp` sends +1, in MainActivity's
- * own `dispatchKeyEvent`), and two hardware controls an inch apart disagreeing about which way the
- * book goes is worse than disagreeing with another app.
+ * **Down is forward**, the way KOReader and every other e-reader with volume page turns does it, and
+ * the way the thumb wants it: the lower key sits under the thumb at rest, and forward is the press
+ * you make hundreds of times a book. v1.17 shipped this the other way round, matched to the wheel
+ * (`WheelUp` sends +1, in MainActivity's own `dispatchKeyEvent`) rather than to other readers. The
+ * wheel is a different control in a different place and agreeing with it bought less than reading
+ * the way a book actually gets read.
  *
  * These are ordinary Android keycodes rather than `LightKey`s. light-common knows the five scancodes
  * Light patched into `Generic.kl` - the wheel, its click, focus and camera - and volume is not one of
  * them, so there is nothing there to reuse and this stays a plain keycode check inside the app.
  */
 fun volumePageStep(keyCode: Int): Int? = when (keyCode) {
-    KeyEvent.KEYCODE_VOLUME_UP -> 1
-    KeyEvent.KEYCODE_VOLUME_DOWN -> -1
+    KeyEvent.KEYCODE_VOLUME_DOWN -> 1
+    KeyEvent.KEYCODE_VOLUME_UP -> -1
     else -> null
 }
 

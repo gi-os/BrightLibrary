@@ -16,13 +16,13 @@ import org.junit.Test
 class VolumeKeysTest {
 
     @Test
-    fun `volume up turns forward, matching the wheel`() {
-        assertEquals(1, volumePageStep(24))
+    fun `volume down turns forward, the way every e-reader does it`() {
+        assertEquals(1, volumePageStep(25))
     }
 
     @Test
-    fun `volume down turns back`() {
-        assertEquals(-1, volumePageStep(25))
+    fun `volume up turns back`() {
+        assertEquals(-1, volumePageStep(24))
     }
 
     @Test
