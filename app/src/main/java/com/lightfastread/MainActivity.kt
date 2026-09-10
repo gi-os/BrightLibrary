@@ -27,6 +27,13 @@ import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.data.BookKind
 import com.lightfastread.ui.comic.ComicReader
 import android.net.Uri
+import android.content.Intent
+import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import com.lightfastread.data.Importer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.lightfastread.ui.home.HomeScreen
 import com.lightfastread.ui.home.SeriesShelf
 import com.lightfastread.ui.library.LibraryScreen
@@ -108,8 +115,47 @@ class MainActivity : ComponentActivity() {
         ProgressSync.flush(this)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeBook(intent)
+    }
+
+    /**
+     * A book handed over by another app: `ACTION_SEND` with the file as `EXTRA_STREAM`, or
+     * `ACTION_VIEW` on an EPUB. Web Tools' SEND TO LIBRARY does the first with an article it
+     * turned into an EPUB. Same staging as the picker: copied to a file before anything reads it,
+     * imported off the main thread, the copy deleted after.
+     */
+    private fun takeBook(intent: Intent?) {
+        if (intent == null) return
+        val uri: Uri? = when (intent.action) {
+            Intent.ACTION_SEND -> @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            Intent.ACTION_VIEW -> intent.data
+            else -> null
+        }
+        if (uri == null) return
+        intent.action = null // once
+        lifecycleScope.launch {
+            val result = runCatching {
+                val staged = withContext(Dispatchers.IO) { Importer.cacheCopy(this@MainActivity, uri) }
+                val name = Importer.displayName(this@MainActivity, uri) ?: staged.name
+                try {
+                    withContext(Dispatchers.IO) { Importer.importFile(this@MainActivity, staged, name) }
+                } finally {
+                    withContext(Dispatchers.IO) { staged.delete() }
+                }
+            }.getOrElse { Importer.Result.Failed(it.message ?: "Could not read that file.") }
+            val text = when (result) {
+                is Importer.Result.Added -> "Added “${result.book.title}”"
+                is Importer.Result.Failed -> result.message
+            }
+            Toast.makeText(this@MainActivity, text, Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        takeBook(intent)
         // First thing, before anything else can throw. This is the whole of the app's
         // reporting setup: it names the app for issue titles, hands over the key, and arms the
         // crash handler, which chains onto whatever is already installed and only writes a
