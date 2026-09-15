@@ -1,5 +1,7 @@
 ## Gio's LPIII fork — status as of 2026-08-05
 
+[**⬇ Download the latest APK**](https://github.com/gi-os/BrightLibrary/releases/latest) · free, open source.
+
 This repo forks the FastRead RSVP reader for one piece of hardware: the Light Phone
 III's 3.92", 1080×1240 black-and-white OLED (see [Credits](#credits) for the exact
 upstream lineage — it's more tangled than a single fork arrow). Upstream's reading
