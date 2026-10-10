@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.lightfastread.data.Book
+import com.lightfastread.data.Settings
 import com.lightfastread.data.ShelfEntry
 import com.lightfastread.ui.light.LightText
 import com.lightfastread.ui.light.LightTextVariant
@@ -33,8 +34,12 @@ import com.lightfastread.ui.light.lightCombinedClickable
  * file — a series should look exactly like the shelf it came from, because it *is* one.
  */
 
-/** Two to a row, as on the main shelf. Anything more and the art stops being worth showing. */
-internal const val COLUMNS = 2
+/**
+ * Covers per row. Two by default — the art is worth showing — or three, which gets a second full
+ * row onto the LP3's short screen at the cost of smaller covers. Clamped so a hand-edited or
+ * future value can't produce a shelf of slivers.
+ */
+internal fun shelfColumns(settings: Settings): Int = settings.shelfColumns.coerceIn(2, 3)
 
 /** Book covers are 2:3, near enough to every trade paperback ever printed. */
 internal const val COVER_ASPECT = 2f / 3f

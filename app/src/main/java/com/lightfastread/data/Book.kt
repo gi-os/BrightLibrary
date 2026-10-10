@@ -37,6 +37,10 @@ data class Book(
     val totalWords: Int,
     val currentWordIndex: Int = 0,
     val addedAtMs: Long = System.currentTimeMillis(),
+    /** When the book was last opened; 0 if never. The shelf sorts on this so what you're reading is first. */
+    val lastOpenedAtMs: Long = 0L,
+    /** Pinned books sit at the front of the shelf ahead of everything else, newest-read first. */
+    val pinned: Boolean = false,
     val chapters: List<Chapter> = emptyList(),
     val bookmarks: List<Int> = emptyList(),
     /**

@@ -1,3 +1,25 @@
+## LightBooks v1.19 — Your book first, colour on black, and the mode you left in
+
+**The shelf puts what you're reading first.** Opening a book moves it (or its series stack) to the
+front. Long-press a book for **PIN TO TOP** to keep it there no matter what else you open.
+
+**Three books per row.** Settings → Appearance → "Books per row". Two is still the default. Three
+fits more of the shelf on the LP3's short screen at the cost of smaller covers.
+
+**Colour accents in the Light Phone theme.** Settings → Appearance → "Colour accents", shown when the
+theme is Light Phone. The surfaces stay true black and the ORP letter and chapter titles keep the
+colours you picked, for phones that show colour (Luma, for one). Want grey? Set saturation to 0. On a
+stock LP3 with the `WRITE_SECURE_SETTINGS` grant, the reader lifts the system greyscale so the colour
+is visible. Without the grant it stays grey, same as before.
+
+**Open in last mode.** Settings → Opening a book. Off by default. When it's on, a book opens in
+whichever reader you last switched to, FastRead or the page view. Back from FastRead then leaves the
+book instead of stopping at the pages first.
+
+Thanks to the Discord feedback that asked for all four.
+
+---
+
 ## LightBooks v1.18 — Volume down turns forward
 
 **The volume keys turn the other way now.** Down is forward, up is back. v1.17 matched them to the

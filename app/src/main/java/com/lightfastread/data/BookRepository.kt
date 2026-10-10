@@ -179,6 +179,21 @@ class BookRepository private constructor(private val appContext: Context) {
 
     fun getBook(id: String): Book? = books.firstOrNull { it.id == id }
 
+    /** Stamp a book as just opened, which moves it (or its stack) to the front of the shelf. */
+    fun markOpened(id: String) {
+        val idx = books.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        books[idx] = books[idx].copy(lastOpenedAtMs = System.currentTimeMillis())
+        persist()
+    }
+
+    fun setPinned(id: String, pinned: Boolean) {
+        val idx = books.indexOfFirst { it.id == id }
+        if (idx < 0 || books[idx].pinned == pinned) return
+        books[idx] = books[idx].copy(pinned = pinned)
+        persist()
+    }
+
     fun updateProgress(id: String, wordIndex: Int) {
         val idx = books.indexOfFirst { it.id == id }
         if (idx < 0) return
