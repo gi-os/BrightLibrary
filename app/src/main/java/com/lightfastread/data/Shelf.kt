@@ -100,6 +100,18 @@ object Shelf {
         return out
     }
 
+    /**
+     * The order the shelf is drawn in: pinned books first, then by whichever is later — when the
+     * book was last opened or when it was added. Feed the result to [entries], which keeps the
+     * order it is given, so a stack sits wherever its most recent volume does.
+     *
+     * Stable, so books with equal timestamps keep the order they were stored in.
+     */
+    fun ordered(books: List<Book>): List<Book> = books.sortedWith(
+        compareByDescending<Book> { it.pinned }
+            .thenByDescending { maxOf(it.lastOpenedAtMs, it.addedAtMs) }
+    )
+
     /** The volumes of one stack, for the series screen. Empty when nothing matches any more. */
     fun volumesOf(books: List<Book>, seriesKey: String): List<Book> =
         (entries(books).firstOrNull {

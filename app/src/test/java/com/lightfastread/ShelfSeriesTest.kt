@@ -115,4 +115,23 @@ class ShelfSeriesTest {
         assertEquals("BECK", Shelf.nameOf(books, key))
         assertTrue(Shelf.volumesOf(books, SeriesTitle.key("Nothing")).isEmpty())
     }
+
+    @Test
+    fun `pinned first, then most recently opened or added`() {
+        val old = book("Old").copy(addedAtMs = 100)
+        val opened = book("Opened").copy(addedAtMs = 50, lastOpenedAtMs = 500)
+        val new = book("New").copy(addedAtMs = 300)
+        val pinned = book("Pinned").copy(addedAtMs = 10, pinned = true)
+        val order = Shelf.ordered(listOf(new, old, opened, pinned)).map { it.title }
+        assertEquals(listOf("Pinned", "Opened", "New", "Old"), order)
+    }
+
+    @Test
+    fun `a stack follows its most recently opened volume`() {
+        val loose = book("Dune").copy(addedAtMs = 400)
+        val v1 = book("BECK, Vol. 1").copy(addedAtMs = 100)
+        val v2 = book("BECK, Vol. 2").copy(addedAtMs = 110, lastOpenedAtMs = 900)
+        val entries = Shelf.entries(Shelf.ordered(listOf(loose, v1, v2)))
+        assertTrue(entries.first() is ShelfEntry.Stack)
+    }
 }

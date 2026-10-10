@@ -55,6 +55,7 @@ import com.lightfastread.data.SwipeMode
 import com.lightfastread.ui.light.LightText
 import com.lightfastread.ui.light.LightTextVariant
 import com.lightfastread.ui.theme.LocalIsLightPhone
+import com.lightfastread.ui.light.ColourEffect
 import com.lightfastread.ui.theme.toLightPhoneGrey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -86,13 +87,21 @@ fun ReaderScreen(
     // Flatten them here instead of at the draw site, so the emulator preview
     // matches the device exactly and low-luma picks (the default red ORP) don't
     // vanish against the dimmed context lines.
+    //
+    // Unless the user has asked for colour accents: then the surfaces stay true black and the
+    // hues come through as picked, for phones that show colour (Luma, or the adb grant).
     val isLightPhone = LocalIsLightPhone.current
+    val flattenAccents = isLightPhone && !settings.lightPhoneColorAccents
     val titleColor = Color(settings.titleColorArgb).let {
-        if (isLightPhone) it.toLightPhoneGrey() else it
+        if (flattenAccents) it.toLightPhoneGrey() else it
     }
     val orpColor = Color(settings.orpColorArgb).let {
-        if (isLightPhone) it.toLightPhoneGrey(floor = 0.70f) else it
+        if (flattenAccents) it.toLightPhoneGrey(floor = 0.70f) else it
     }
+    // On a stock LP3 with the WRITE_SECURE_SETTINGS grant, lift the system greyscale while
+    // reading so the accents are actually visible. A no-op on a phone that is already in colour,
+    // and without the grant.
+    ColourEffect(enabled = isLightPhone && settings.lightPhoneColorAccents)
 
     if (book == null) {
         LaunchedEffect(Unit) { onBack() }
@@ -114,7 +123,27 @@ fun ReaderScreen(
     // A book opens to its pages, not to the word reader. FastRead is a button in the page
     // view's top bar, which is itself hidden until you tap the screen — so the app you get
     // when you open a book is an e-reader, and RSVP is a mode you ask for.
-    var showEreader by rememberSaveable { mutableStateOf(true) }
+    //
+    // Unless "open in last mode" is on: then it opens in whichever the user last switched to.
+    var showEreader by rememberSaveable {
+        mutableStateOf(!(settings.openInLastMode && settings.lastModeFastRead))
+    }
+    // Only explicit switches are remembered — not the fallback to RSVP when a book can't be
+    // paginated, which is about that book rather than a preference.
+    val rememberMode: (fastRead: Boolean) -> Unit = { fastRead ->
+        if (settings.openInLastMode && settings.lastModeFastRead != fastRead) {
+            settingsRepo.update { it.copy(lastModeFastRead = fastRead) }
+        }
+    }
+    // With last-mode on, RSVP is the reader's home rather than a detour from the pages, so back
+    // leaves the book instead of stepping through the page view (which would also be a switch).
+    val backFromRsvp: () -> Unit = {
+        if (settings.openInLastMode) {
+            onBack()
+        } else {
+            showEreader = true
+        }
+    }
     val historyBack = rememberSaveable(bookId, saver = IntListSaver) { mutableStateListOf<Int>() }
     val historyForward = rememberSaveable(bookId, saver = IntListSaver) { mutableStateListOf<Int>() }
     val bookmarks = bookRepo.books.firstOrNull { it.id == bookId }?.bookmarks ?: emptyList()
@@ -123,7 +152,7 @@ fun ReaderScreen(
 
     // The system gesture agrees with the top bar's own arrow. While the page view is up it owns
     // back itself (it is a Dialog, with its own window), so this only ever fires in RSVP.
-    BackHandler(enabled = !showEreader) { showEreader = true }
+    BackHandler(enabled = !showEreader) { backFromRsvp() }
 
     val jumpTo: (Int) -> Unit = { target ->
         val safe = target.coerceIn(0, (words.size - 1).coerceAtLeast(0))
@@ -402,7 +431,10 @@ fun ReaderScreen(
                                 }
                             } != null
                             if (releasedInTime) {
-                                if (!moved) showEreader = true
+                                if (!moved) {
+                                    rememberMode(false)
+                                    showEreader = true
+                                }
                                 return@awaitEachGesture
                             }
                             // Still held past the tap window: fall through to
@@ -573,7 +605,7 @@ fun ReaderScreen(
                         // Back out of the word reader is back to the *pages*, not out of the
                         // book: the page view is the book's home screen now, and leaving from
                         // there is one more press.
-                        onBack = { showEreader = true },
+                        onBack = backFromRsvp,
                         onQuickSettings = { showQuickSettings = true },
                     )
                 }
@@ -656,6 +688,11 @@ fun ReaderScreen(
                         bookRepo.updateProgress(bookId, currentIndex)
                     },
                     onFastRead = { newIndex ->
+                        rememberMode(true)
+                        showEreader = false
+                        jumpTo(newIndex)
+                    },
+                    onCannotPaginate = { newIndex ->
                         showEreader = false
                         jumpTo(newIndex)
                     },

@@ -185,6 +185,8 @@ fun EreaderScreen(
     onProgress: (wordIndex: Int) -> Unit,
     /** Hand the reader over to the RSVP screen, at the page currently showing. */
     onFastRead: (wordIndex: Int) -> Unit,
+    /** The book laid out to zero pages; hand over to RSVP. Not a user choice, so kept separate. */
+    onCannotPaginate: (wordIndex: Int) -> Unit = onFastRead,
     /** Leave the book entirely, at the page currently showing. */
     onExit: (wordIndex: Int) -> Unit,
 ) {
@@ -396,7 +398,7 @@ fun EreaderScreen(
                         // Nothing to page through. Falling back to the word reader is better
                         // than throwing the reader out to the shelf: there is still text, it
                         // just could not be laid out into pages at this size.
-                        onFastRead(anchor)
+                        onCannotPaginate(anchor)
                         return@LaunchedEffect
                     }
                     PageCache.put(cacheKey, built)
