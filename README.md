@@ -1,3 +1,5 @@
+<a href="https://github.com/sponsors/gi-os"><img src="https://raw.githubusercontent.com/gi-os/gi-os/main/images/bright-sponsors.svg" width="100%" alt="Thank you to my sponsors"></a>
+
 ## Gio's LPIII fork — status as of 2026-08-05
 
 [**⬇ Download the latest APK**](https://github.com/gi-os/BrightLibrary/releases/latest) · free, open source.
