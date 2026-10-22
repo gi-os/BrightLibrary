@@ -395,6 +395,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                 underline = s.titleStyle != TitleStyle.Color,
             )
 
+            SectionTitle("Opening a book")
+            ToggleRow(
+                label = "Open in last mode",
+                caption = "Books open in FastRead or the page view, whichever you switched to " +
+                    "last. Back from FastRead then leaves the book.",
+                checked = s.openInLastMode,
+                onToggle = { v -> repo.update { it.copy(openInLastMode = v) } },
+            )
+
             SectionTitle("Appearance")
             RowLabel("Theme")
             Caption(
@@ -407,6 +416,31 @@ fun SettingsScreen(onBack: () -> Unit) {
                     label = themeModeLabel(mode),
                     selected = s.themeMode == mode,
                     onClick = { repo.update { it.copy(themeMode = mode) } },
+                )
+            }
+            if (s.themeMode == ThemeMode.LightPhone) {
+                Spacer(Modifier.height(12f.designVerticalPxToDp()))
+                ToggleRow(
+                    label = "Colour accents",
+                    caption = "Keep true black but show the ORP and title colours as picked. " +
+                        "For phones that display colour. Set saturation to 0 for grey.",
+                    checked = s.lightPhoneColorAccents,
+                    onToggle = { v -> repo.update { it.copy(lightPhoneColorAccents = v) } },
+                ) {
+                    if (s.lightPhoneColorAccents && !ColorMode.granted(context) &&
+                        !ColorMode.phoneIsColour(context)
+                    ) {
+                        Caption("This phone is greyscale. Grant the permission below, or the colours show as grey.")
+                    }
+                }
+            }
+            Spacer(Modifier.height(12f.designVerticalPxToDp()))
+            RowLabel("Books per row")
+            listOf(2, 3).forEach { n ->
+                ChoiceRow(
+                    label = "$n",
+                    selected = s.shelfColumns.coerceIn(2, 3) == n,
+                    onClick = { repo.update { it.copy(shelfColumns = n) } },
                 )
             }
             Spacer(Modifier.height(12f.designVerticalPxToDp()))

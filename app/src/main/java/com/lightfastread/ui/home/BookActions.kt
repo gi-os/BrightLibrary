@@ -43,6 +43,8 @@ fun BookActions(
     onFlipDirection: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    /** Null where pinning means nothing (inside a series); the shelf passes it. */
+    onTogglePin: (() -> Unit)? = null,
 ) {
     val colors = LightThemeTokens.colors
     var confirmingDelete by remember { mutableStateOf(false) }
@@ -84,6 +86,9 @@ fun BookActions(
                     onClick = onFlipDirection,
                 )
                 ActionRow(text = "FIX NAME", onClick = onRename)
+                if (onTogglePin != null) {
+                    ActionRow(text = if (book.pinned) "UNPIN" else "PIN TO TOP", onClick = onTogglePin)
+                }
                 ActionRow(text = "DELETE", onClick = { confirmingDelete = true })
                 ActionRow(text = "CANCEL", lighten = true, onClick = onDismiss)
             } else {
@@ -91,6 +96,9 @@ fun BookActions(
                 // Directly under FIND COVER, because it is the thing to try when that keeps
                 // failing: a lookup is only as good as the title it is given.
                 ActionRow(text = "FIX NAME", onClick = onRename)
+                if (onTogglePin != null) {
+                    ActionRow(text = if (book.pinned) "UNPIN" else "PIN TO TOP", onClick = onTogglePin)
+                }
                 ActionRow(text = "DELETE", onClick = { confirmingDelete = true })
                 ActionRow(text = "CANCEL", lighten = true, onClick = onDismiss)
             }

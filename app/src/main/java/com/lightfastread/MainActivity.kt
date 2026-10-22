@@ -25,6 +25,9 @@ import com.lightfastread.hw.VolumeBus
 import com.lightfastread.hw.volumePageStep
 import com.lightfastread.calibre.ProgressSync
 import com.lightfastread.data.BookKind
+import com.lightfastread.data.BookRepository
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
 import com.lightfastread.ui.comic.ComicReader
 import android.net.Uri
 import android.content.Intent
@@ -210,6 +213,9 @@ class MainActivity : ComponentActivity() {
 @androidx.compose.runtime.Composable
 private fun AppNav() {
     val navController = rememberNavController()
+    val appContext = LocalContext.current.applicationContext
+    // Opening a book stamps it, so the shelf puts what you are reading first.
+    val bookRepo = remember { BookRepository.get(appContext) }
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
@@ -217,6 +223,7 @@ private fun AppNav() {
                 // ReaderScreen: a comic has no words to load, so the text reader should never be
                 // built for one at all.
                 onOpenBook = { book ->
+                    bookRepo.markOpened(book.id)
                     val route = if (book.kind == BookKind.Comic) "comic" else "reader"
                     navController.navigate("$route/${book.id}")
                 },
@@ -238,6 +245,7 @@ private fun AppNav() {
             SeriesShelf(
                 seriesKey = Uri.decode(backStackEntry.arguments?.getString("seriesKey").orEmpty()),
                 onOpenBook = { book ->
+                    bookRepo.markOpened(book.id)
                     val route = if (book.kind == BookKind.Comic) "comic" else "reader"
                     navController.navigate("$route/${book.id}")
                 },

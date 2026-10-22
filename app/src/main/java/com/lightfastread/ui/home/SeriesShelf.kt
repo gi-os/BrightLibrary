@@ -98,7 +98,7 @@ fun SeriesShelf(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(COLUMNS),
+                    columns = GridCells.Fixed(shelfColumns(settings)),
                     state = gridState,
                     modifier = Modifier.fillMaxSize().navigationBarsPadding(),
                     contentPadding = PaddingValues(

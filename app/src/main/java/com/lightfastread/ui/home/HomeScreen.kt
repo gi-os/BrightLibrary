@@ -90,7 +90,7 @@ fun HomeScreen(
 
     // Recomputed whenever the shelf changes, which is cheap: a parse of each title and a group-by,
     // over a list that is tens of items long, not thousands.
-    val entries = remember(books.toList()) { Shelf.entries(books.toList()) }
+    val entries = remember(books.toList()) { Shelf.entries(Shelf.ordered(books.toList())) }
     var importing by remember { mutableStateOf(false) }
     var importStep by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -221,7 +221,7 @@ fun HomeScreen(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(COLUMNS),
+                    columns = GridCells.Fixed(shelfColumns(settings)),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
@@ -336,6 +336,10 @@ fun HomeScreen(
                 } else {
                     "“${book.title}” now reads right to left"
                 }
+            },
+            onTogglePin = {
+                actionsFor = null
+                repo.setPinned(book.id, !book.pinned)
             },
             onDelete = {
                 actionsFor = null

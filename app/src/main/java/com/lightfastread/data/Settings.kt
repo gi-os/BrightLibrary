@@ -121,4 +121,22 @@ data class Settings(
      * phone for someone who did not, so it is opt-in. Volume down goes forward, as on any e-reader.
      */
     val volumeKeysTurnPages: Boolean = false,
+    /**
+     * Keep the title and ORP accents in the colours picked, even in the Light Phone theme.
+     *
+     * Off by default: on a stock LP3 the panel is held greyscale, and the default red ORP arrives
+     * as a grey dark enough to vanish, which is why the theme flattens accents with a lifted floor.
+     * On a phone already running in colour (Luma, or the adb grant below) that flattening throws
+     * away exactly what was asked for — so this keeps the true-black surfaces and the hues together.
+     * Want grey anyway? Set saturation to 0.
+     */
+    val lightPhoneColorAccents: Boolean = false,
+    /** Covers per shelf row: 2 (the default, art worth looking at) or 3 (more of the shelf on screen). */
+    val shelfColumns: Int = 2,
+    /**
+     * Open a book in whichever reader was last used — FastRead or the page view — instead of
+     * always the page view. Off by default; [lastModeFastRead] is what it remembers.
+     */
+    val openInLastMode: Boolean = false,
+    val lastModeFastRead: Boolean = false,
 )
