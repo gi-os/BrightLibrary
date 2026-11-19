@@ -78,9 +78,6 @@ jobs:
       - name: Build and test
         run: ./gradlew assembleDebug assembleRelease testDebugUnitTest --stacktrace
         env:
-          # Shake-to-report posts issues with this. Absent, the build still works —
-          # reports queue on the phone until a build that has the key installs over it.
-          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
           GPR_USER: ${{ secrets.GPR_USER }}
           GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

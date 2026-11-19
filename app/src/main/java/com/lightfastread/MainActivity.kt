@@ -170,7 +170,8 @@ class MainActivity : ComponentActivity() {
             context = this,
             appName = "LightBooks",
             label = "fastread",
-            token = BuildConfig.REPORT_TOKEN,
+            // No key on the phone: reports queue until light-common 1.11.0, which posts them to the report relay.
+            token = "",
         )
         // Transparent bars over a black window. LightOS draws no persistent
         // system bars, but on a normal Android device or the LPIII emulator this
